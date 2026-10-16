@@ -1,0 +1,287 @@
+openapi: 3.0.3
+info:
+  title: India Travel API
+  version: 2.0.0
+  description: |
+    REST API for the India Travel booking platform.
+
+    **Booking flow:** search -> select package/hotel -> `POST /bookings` (pending, inventory held for 30 min) ->
+    `POST /payment/create-order` -> Razorpay Checkout -> `POST /payment/verify` (+ webhook) -> booking `confirmed`,
+    invoice PDF + emails + notifications.
+
+    **Auth:** send `Authorization: Bearer <accessToken>`. Access tokens last 15 minutes; `POST /auth/refresh`
+    (httpOnly cookie) rotates them. Roles: `user`, `admin` (only two).
+servers:
+  - url: http://localhost:8000/api
+    description: Local
+tags:
+  - name: Auth
+  - name: Bookings
+  - name: Payments
+  - name: Catalog
+  - name: Reviews
+  - name: Wishlist
+  - name: Coupons
+  - name: Notifications
+  - name: Itinerary
+  - name: Admin
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+  schemas:
+    Error:
+      type: object
+      properties:
+        success: { type: boolean, example: false }
+        message: { type: string }
+    Pricing:
+      type: object
+      properties:
+        basePrice: { type: integer, example: 50000 }
+        discount: { type: integer, example: 5000 }
+        tax: { type: integer, example: 2250 }
+        totalAmount: { type: integer, example: 47250 }
+    Booking:
+      type: object
+      properties:
+        _id: { type: string }
+        bookingReference: { type: string, example: IT-260607-K7M2QX }
+        bookingType: { type: string, enum: [hotel, package] }
+        bookingStatus: { type: string, enum: [pending, confirmed, cancelled, failed, refunded, completed, expired] }
+        paymentStatus: { type: string, enum: [pending, paid, failed, refunded, partially_refunded] }
+        expiresAt: { type: string, format: date-time }
+        pricing: { $ref: "#/components/schemas/Pricing" }
+        invoiceNumber: { type: string }
+    CreateBooking:
+      oneOf:
+        - type: object
+          required: [bookingType, roomId, checkIn, checkOut]
+          properties:
+            bookingType: { type: string, enum: [hotel] }
+            roomId: { type: string }
+            checkIn: { type: string, format: date }
+            checkOut: { type: string, format: date }
+            numberOfRooms: { type: integer, default: 1 }
+            guests: { type: object, properties: { adults: { type: integer }, children: { type: integer } } }
+            couponCode: { type: string, example: WELCOME10 }
+        - type: object
+          required: [bookingType, packageId, travelDate]
+          properties:
+            bookingType: { type: string, enum: [package] }
+            packageId: { type: string }
+            travelDate: { type: string, format: date }
+            guests: { type: object, properties: { adults: { type: integer }, children: { type: integer } } }
+            couponCode: { type: string }
+  responses:
+    Unauthorized: { description: Missing/invalid token, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    Forbidden: { description: Insufficient role, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+security:
+  - bearerAuth: []
+paths:
+  /auth/register:
+    post:
+      tags: [Auth]
+      security: []
+      summary: Register (role is always `user`)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, password]
+              properties: { name: { type: string }, email: { type: string }, password: { type: string, description: min 8 chars, letter + number }, phone: { type: string } }
+      responses: { "201": { description: Created - returns access token + sets refresh cookie }, "400": { description: Validation error }, "409": { description: Email exists } }
+  /auth/login:
+    post:
+      tags: [Auth]
+      security: []
+      summary: Login (rate limited)
+      responses: { "200": { description: Access token + refresh cookie }, "401": { description: Invalid credentials } }
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      security: []
+      summary: Rotate refresh token (httpOnly cookie) and get a new access token
+      responses: { "200": { description: OK }, "401": { description: Session expired } }
+  /auth/logout:
+    post: { tags: [Auth], summary: Revoke this device's refresh token, responses: { "200": { description: OK } } }
+  /auth/logout-all:
+    post: { tags: [Auth], summary: Sign out of every device, responses: { "200": { description: OK } } }
+  /auth/forgot-password:
+    post: { tags: [Auth], security: [], summary: Email a reset link (same response whether or not the account exists), responses: { "200": { description: OK } } }
+  /auth/reset-password/{token}:
+    put:
+      tags: [Auth]
+      security: []
+      parameters: [{ name: token, in: path, required: true, schema: { type: string } }]
+      summary: Set a new password (invalidates all sessions)
+      responses: { "200": { description: OK }, "400": { description: Invalid/expired link } }
+  /destinations:
+    get:
+      tags: [Catalog]
+      security: []
+      summary: List destinations
+      parameters:
+        - { name: search, in: query, schema: { type: string } }
+        - { name: state, in: query, schema: { type: string } }
+        - { name: tag, in: query, schema: { type: string } }
+        - { name: page, in: query, schema: { type: integer } }
+        - { name: limit, in: query, schema: { type: integer, maximum: 100 } }
+      responses: { "200": { description: OK } }
+  /packages:
+    get:
+      tags: [Catalog]
+      security: []
+      summary: Search packages (public)
+      description: "Example: `/packages?destination=Kashmir&minPrice=20000&maxPrice=50000&minDuration=5&maxDuration=7&category=Adventure&minRating=4`"
+      parameters:
+        - { name: search, in: query, schema: { type: string } }
+        - { name: destination, in: query, description: Destination id or name, schema: { type: string } }
+        - { name: category, in: query, description: "Adventure, Luxury, Family, Honeymoon, Pilgrimage, Wildlife, Cultural (comma separated)", schema: { type: string } }
+        - { name: minPrice, in: query, schema: { type: number } }
+        - { name: maxPrice, in: query, schema: { type: number } }
+        - { name: minDuration, in: query, schema: { type: integer } }
+        - { name: maxDuration, in: query, schema: { type: integer } }
+        - { name: minRating, in: query, schema: { type: number } }
+        - { name: startDate, in: query, description: Departures on/after, schema: { type: string, format: date } }
+        - { name: endDate, in: query, description: Departures on/before, schema: { type: string, format: date } }
+        - { name: hotel, in: query, description: Hotel id used on the tour, schema: { type: string } }
+        - { name: amenities, in: query, description: Comma separated, schema: { type: string } }
+        - { name: sort, in: query, schema: { type: string, enum: [price_asc, price_desc, rating_desc, duration_asc, duration_desc, popular, newest] } }
+        - { name: page, in: query, schema: { type: integer } }
+        - { name: limit, in: query, schema: { type: integer } }
+      responses: { "200": { description: OK } }
+    post: { tags: [Catalog], summary: Create package (admin), responses: { "201": { description: Created }, "403": { $ref: "#/components/responses/Forbidden" } } }
+  /packages/{id}:
+    get: { tags: [Catalog], security: [], summary: Package details incl. live seats per departure, parameters: [{ name: id, in: path, required: true, schema: { type: string } }], responses: { "200": { description: OK } } }
+    put: { tags: [Catalog], summary: Update package (admin), parameters: [{ name: id, in: path, required: true, schema: { type: string } }], responses: { "200": { description: OK } } }
+    delete: { tags: [Catalog], summary: Delete package (admin; deactivates if it has bookings), parameters: [{ name: id, in: path, required: true, schema: { type: string } }], responses: { "200": { description: OK } } }
+  /packages/{id}/availability:
+    get:
+      tags: [Catalog]
+      security: []
+      summary: Seats left on a departure date
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }, { name: date, in: query, required: true, schema: { type: string, format: date } }, { name: guests, in: query, schema: { type: integer } }]
+      responses: { "200": { description: OK } }
+  /hotels:
+    get:
+      tags: [Catalog]
+      security: []
+      summary: Search hotels
+      parameters:
+        - { name: city, in: query, schema: { type: string } }
+        - { name: minPrice, in: query, description: Cheapest room, schema: { type: number } }
+        - { name: maxPrice, in: query, schema: { type: number } }
+        - { name: rating, in: query, schema: { type: number } }
+        - { name: amenities, in: query, schema: { type: string } }
+        - { name: checkIn, in: query, schema: { type: string, format: date } }
+        - { name: checkOut, in: query, schema: { type: string, format: date } }
+        - { name: rooms, in: query, schema: { type: integer } }
+        - { name: sort, in: query, schema: { type: string, enum: [price_asc, price_desc, rating_desc] } }
+      responses: { "200": { description: OK } }
+  /hotels/{id}/availability:
+    get:
+      tags: [Catalog]
+      security: []
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }, { name: roomId, in: query, required: true, schema: { type: string } }, { name: checkIn, in: query, required: true, schema: { type: string, format: date } }, { name: checkOut, in: query, required: true, schema: { type: string, format: date } }, { name: rooms, in: query, schema: { type: integer } }]
+      responses: { "200": { description: OK } }
+  /bookings:
+    post:
+      tags: [Bookings]
+      summary: Create a PENDING booking (validates availability, prices server-side, holds inventory 30 min)
+      description: Send an `Idempotency-Key` header to make retries safe. An identical open booking is returned instead of a duplicate.
+      parameters: [{ name: Idempotency-Key, in: header, schema: { type: string } }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/CreateBooking" } } } }
+      responses: { "201": { description: Created }, "200": { description: Existing/duplicate returned }, "409": { description: Sold out / duplicate }, "400": { description: Validation error } }
+    get: { tags: [Bookings], summary: All bookings (admin), responses: { "200": { description: OK } } }
+  /bookings/my:
+    get: { tags: [Bookings], summary: My booking history, parameters: [{ name: status, in: query, schema: { type: string } }], responses: { "200": { description: OK } } }
+  /bookings/{id}:
+    get: { tags: [Bookings], summary: Booking details (+ refund preview), parameters: [{ name: id, in: path, required: true, schema: { type: string } }], responses: { "200": { description: OK }, "403": { $ref: "#/components/responses/Forbidden" } } }
+  /bookings/{id}/cancel:
+    put: { tags: [Bookings], summary: Cancel (refund per policy - 90% / 50% / 0%), parameters: [{ name: id, in: path, required: true, schema: { type: string } }], responses: { "200": { description: Cancelled + refund details } } }
+  /bookings/{id}/invoice:
+    get: { tags: [Bookings], summary: Download invoice PDF (paid bookings), parameters: [{ name: id, in: path, required: true, schema: { type: string } }], responses: { "200": { description: PDF, content: { application/pdf: {} } } } }
+  /bookings/{id}/apply-coupon:
+    put: { tags: [Bookings], summary: Apply/remove a coupon on a pending booking, parameters: [{ name: id, in: path, required: true, schema: { type: string } }], responses: { "200": { description: Re-priced booking } } }
+  /payment/create-order:
+    post:
+      tags: [Payments]
+      summary: Create (or reuse) a Razorpay order. Amount always comes from the DB.
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [bookingId], properties: { bookingId: { type: string } } } } } }
+      responses: { "201": { description: orderId, amount (paise), keyId }, "409": { description: Booking expired / not payable } }
+  /payment/verify:
+    post:
+      tags: [Payments]
+      summary: Verify Razorpay signature, reconcile with Razorpay, confirm booking (idempotent)
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [razorpay_order_id, razorpay_payment_id, razorpay_signature], properties: { razorpay_order_id: { type: string }, razorpay_payment_id: { type: string }, razorpay_signature: { type: string } } } } } }
+      responses: { "200": { description: Booking confirmed }, "400": { description: Signature mismatch } }
+  /payment/failed:
+    post: { tags: [Payments], summary: Report a failed checkout attempt, responses: { "200": { description: OK } } }
+  /payment/webhook:
+    post:
+      tags: [Payments]
+      security: []
+      summary: Razorpay webhook (HMAC verified, idempotent by event id)
+      description: Events handled - payment.captured, order.paid, payment.failed, refund.processed.
+      responses: { "200": { description: Processed / duplicate }, "400": { description: Invalid signature } }
+  /payment/admin:
+    get: { tags: [Admin], summary: List payments, responses: { "200": { description: OK } } }
+  /payment/admin/stats:
+    get: { tags: [Admin], summary: Payment totals, responses: { "200": { description: OK } } }
+  /payment/admin/{id}/refund:
+    post: { tags: [Admin], summary: Refund a payment (full or partial) and cancel the booking, parameters: [{ name: id, in: path, required: true, schema: { type: string } }], responses: { "200": { description: OK } } }
+  /reviews/eligibility:
+    get:
+      tags: [Reviews]
+      summary: Can the current user review this hotel/package? (needs a completed, un-reviewed booking)
+      parameters: [{ name: targetType, in: query, required: true, schema: { type: string, enum: [hotel, package] } }, { name: targetId, in: query, required: true, schema: { type: string } }]
+      responses: { "200": { description: "{ canReview, bookingId }" } }
+  /reviews:
+    post:
+      tags: [Reviews]
+      summary: Create a review for one of YOUR completed bookings
+      requestBody: { required: true, content: { multipart/form-data: { schema: { type: object, required: [bookingId, rating, comment], properties: { bookingId: { type: string }, rating: { type: integer, minimum: 1, maximum: 5 }, comment: { type: string }, images: { type: array, items: { type: string, format: binary } } } } } } }
+      responses: { "201": { description: Created }, "403": { description: Booking not completed }, "409": { description: Already reviewed } }
+  /wishlist:
+    get: { tags: [Wishlist], summary: My wishlist (destinations, hotels, packages), responses: { "200": { description: OK } } }
+    post:
+      tags: [Wishlist]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [itemType, itemId], properties: { itemType: { type: string, enum: [Destination, Hotel, Package] }, itemId: { type: string } } } } } }
+      responses: { "201": { description: Added }, "200": { description: Already in wishlist } }
+  /wishlist/{itemId}:
+    delete: { tags: [Wishlist], parameters: [{ name: itemId, in: path, required: true, schema: { type: string } }], responses: { "200": { description: OK } } }
+  /coupons/validate:
+    post:
+      tags: [Coupons]
+      summary: Check a coupon for an amount (honours per-user limit)
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [code, amount, bookingType], properties: { code: { type: string, example: WELCOME10 }, amount: { type: number, example: 50000 }, bookingType: { type: string, enum: [hotel, package] } } } } } }
+      responses: { "200": { description: "{ discount: 5000, payable: 45000 }" } }
+  /coupons:
+    get: { tags: [Admin], summary: List coupons (admin), responses: { "200": { description: OK } } }
+    post: { tags: [Admin], summary: Create coupon (admin), responses: { "201": { description: Created } } }
+  /notifications:
+    get: { tags: [Notifications], summary: My notifications + unreadCount, parameters: [{ name: unread, in: query, schema: { type: boolean } }], responses: { "200": { description: OK } } }
+  /notifications/read-all:
+    put: { tags: [Notifications], responses: { "200": { description: OK } } }
+  /notifications/{id}/read:
+    put: { tags: [Notifications], parameters: [{ name: id, in: path, required: true, schema: { type: string } }], responses: { "200": { description: OK } } }
+  /itinerary/generate:
+    post:
+      tags: [Itinerary]
+      security: []
+      summary: Generate a budget-aware day-by-day itinerary
+      description: |
+        Example: `{ "destination": "Kashmir", "days": 5, "budget": 40000, "travellers": 2, "interests": ["Adventure","Nature"] }`
+        returns Day 1 Srinagar, Day 2 Gulmarg, Day 3 Pahalgam, Day 4 Sonamarg, Day 5 Srinagar plus real packages/hotels within budget.
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [destination, days, budget], properties: { destination: { type: string }, days: { type: integer }, budget: { type: integer }, travellers: { type: integer }, interests: { type: array, items: { type: string } }, pace: { type: string, enum: [relaxed, balanced, packed] } } } } } }
+      responses: { "200": { description: Itinerary } }
+  /itinerary/my:
+    get: { tags: [Itinerary], summary: Saved itineraries, responses: { "200": { description: OK } } }
+  /admin/dashboard:
+    get: { tags: [Admin], summary: "Stats + charts: users, bookings, revenue, pending/cancelled, popular destinations/packages, monthly revenue", responses: { "200": { description: OK } } }
+  /admin/reports/revenue:
+    get: { tags: [Admin], parameters: [{ name: months, in: query, schema: { type: integer } }], responses: { "200": { description: OK } } }
+  /health:
+    get: { tags: [Admin], security: [], summary: Health check, responses: { "200": { description: ok } } }

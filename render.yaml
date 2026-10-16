@@ -1,0 +1,28 @@
+# Render Blueprint - New -> Blueprint -> select this repo.
+services:
+  - type: web
+    name: india-travel-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /api/health
+    autoDeploy: false # deployed from GitHub Actions after CI passes
+    envVars:
+      - { key: NODE_ENV, value: production }
+      - { key: TRUST_PROXY, value: "true" }
+      - { key: LOG_TO_FILES, value: "false" }
+      - { key: FRONTEND_URL, sync: false } # https://your-domain.com
+      - { key: MONGO_URI, sync: false } # MongoDB Atlas connection string
+      - { key: JWT_SECRET, generateValue: true }
+      - { key: RAZORPAY_KEY_ID, sync: false }
+      - { key: RAZORPAY_KEY_SECRET, sync: false }
+      - { key: RAZORPAY_WEBHOOK_SECRET, sync: false }
+      - { key: CLOUDINARY_CLOUD_NAME, sync: false }
+      - { key: CLOUDINARY_API_KEY, sync: false }
+      - { key: CLOUDINARY_API_SECRET, sync: false }
+      - { key: SMTP_HOST, sync: false }
+      - { key: SMTP_USER, sync: false }
+      - { key: SMTP_PASS, sync: false }
+      - { key: EMAIL_FROM, sync: false }
+      - { key: ADMIN_NOTIFY_EMAIL, sync: false }
+      - { key: GOOGLE_CLIENT_ID, sync: false }
