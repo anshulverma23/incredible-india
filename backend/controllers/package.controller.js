@@ -11,8 +11,25 @@ const { startOfDay, MS_PER_DAY } = require("../utils/pricing");
 const { sameDayFilter } = require("../services/availability.service");
 const cache = require("../utils/cache");
 
-const FIELDS = ["name", "description", "destination", "price", "packageType", "maxGroupSize", "isActive"];
-const JSON_FIELDS = { duration: {}, itinerary: [], included: [], excluded: [], amenities: [], hotels: [], startDates: [] };
+const FIELDS = [
+  "name",
+  "description",
+  "destination",
+  "price",
+  "packageType",
+  "maxGroupSize",
+  "isActive",
+];
+
+const JSON_FIELDS = {
+  duration: {},
+  itinerary: [],
+  included: [],
+  excluded: [],
+  amenities: [],
+  hotels: [],
+  startDates: [],
+};
 
 const SORTS = {
   price_asc: { price: 1 },
@@ -24,155 +41,404 @@ const SORTS = {
   newest: { createdAt: -1 },
 };
 
-const list = (v) => (v ? String(v).split(",").map((s) => s.trim()).filter(Boolean) : []);
+const list = (value) =>
+  value
+    ? String(value)
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean)
+    : [];
 
-// Builds the Mongo filter from the search page's query-string.
-const buildPackageQuery = async (q) => {
+// Build search filters from query parameters.
+const buildPackageQuery = async (queryParams) => {
   const query = { isActive: true };
 
-  const category = q.category || q.packageType;
-  if (category) query.packageType = { $in: list(category) };
+  const category = queryParams.category || queryParams.packageType;
 
-  if (q.destination) {
-    if (mongoose.isValidObjectId(q.destination)) query.destination = q.destination;
-    else {
-      const rx = safeRegex(q.destination);
-      query.destination = { $in: await Destination.find({ $or: [{ name: rx }, { city: rx }, { state: rx }] }).distinct("_id") };
+  if (category) {
+    query.packageType = { $in: list(category) };
+  }
+
+  if (queryParams.destination) {
+    if (mongoose.isValidObjectId(queryParams.destination)) {
+      query.destination = queryParams.destination;
+    } else {
+      const regex = safeRegex(queryParams.destination);
+
+      query.destination = {
+        $in: await Destination.find({
+          $or: [
+            { name: regex },
+            { city: regex },
+            { state: regex },
+          ],
+        }).distinct("_id"),
+      };
     }
   }
 
-  if (q.minPrice || q.maxPrice) {
+  if (queryParams.minPrice || queryParams.maxPrice) {
     query.price = {};
-    if (q.minPrice) query.price.$gte = Number(q.minPrice);
-    if (q.maxPrice) query.price.$lte = Number(q.maxPrice);
+
+    if (queryParams.minPrice) {
+      query.price.$gte = Number(queryParams.minPrice);
+    }
+
+    if (queryParams.maxPrice) {
+      query.price.$lte = Number(queryParams.maxPrice);
+    }
   }
 
-  const dur = {};
-  if (q.duration) {
-    dur.$gte = Number(q.duration);
-    dur.$lte = Number(q.duration);
-  }
-  if (q.minDuration) dur.$gte = Number(q.minDuration);
-  if (q.maxDuration) dur.$lte = Number(q.maxDuration);
-  if (Object.keys(dur).length) query["duration.days"] = dur;
+  const duration = {};
 
-  const minRating = q.minRating || q.rating;
-  if (minRating) query.rating = { $gte: Number(minRating) };
-
-  if (q.startDate || q.endDate) {
-    query.startDates = { $elemMatch: { ...(q.startDate && { $gte: startOfDay(q.startDate) }), ...(q.endDate && { $lte: new Date(startOfDay(q.endDate).getTime() + MS_PER_DAY - 1) }) } };
+  if (queryParams.duration) {
+    duration.$gte = Number(queryParams.duration);
+    duration.$lte = Number(queryParams.duration);
   }
-  if (q.hotel && mongoose.isValidObjectId(q.hotel)) query.hotels = q.hotel;
-  if (q.amenities) query.amenities = { $all: list(q.amenities).map((a) => new RegExp(`^${escapeRegex(a)}$`, "i")) };
 
-  if (q.search) {
-    const rx = safeRegex(q.search);
-    const destIds = await Destination.find({ $or: [{ name: rx }, { city: rx }, { state: rx }] }).distinct("_id");
-    query.$or = [{ name: rx }, { packageType: rx }, { destination: { $in: destIds } }];
+  if (queryParams.minDuration) {
+    duration.$gte = Number(queryParams.minDuration);
   }
+
+  if (queryParams.maxDuration) {
+    duration.$lte = Number(queryParams.maxDuration);
+  }
+
+  if (Object.keys(duration).length) {
+    query["duration.days"] = duration;
+  }
+
+  const minRating = queryParams.minRating || queryParams.rating;
+
+  if (minRating) {
+    query.rating = { $gte: Number(minRating) };
+  }
+
+  if (queryParams.startDate || queryParams.endDate) {
+    query.startDates = {
+      $elemMatch: {
+        ...(queryParams.startDate && {
+          $gte: startOfDay(queryParams.startDate),
+        }),
+        ...(queryParams.endDate && {
+          $lte: new Date(
+            startOfDay(queryParams.endDate).getTime() +
+              MS_PER_DAY -
+              1
+          ),
+        }),
+      },
+    };
+  }
+
+  if (
+    queryParams.hotel &&
+    mongoose.isValidObjectId(queryParams.hotel)
+  ) {
+    query.hotels = queryParams.hotel;
+  }
+
+  if (queryParams.amenities) {
+    query.amenities = {
+      $all: list(queryParams.amenities).map(
+        (amenity) =>
+          new RegExp(`^${escapeRegex(amenity)}$`, "i")
+      ),
+    };
+  }
+
+  if (queryParams.search) {
+    const regex = safeRegex(queryParams.search);
+
+    const destinationIds = await Destination.find({
+      $or: [
+        { name: regex },
+        { city: regex },
+        { state: regex },
+      ],
+    }).distinct("_id");
+
+    query.$or = [
+      { name: regex },
+      { packageType: regex },
+      { destination: { $in: destinationIds } },
+    ];
+  }
+
   return query;
 };
 
-// @route GET /api/packages
+// GET /api/packages
 const getPackages = asyncHandler(async (req, res) => {
-  const p = parsePagination(req.query, { defaultLimit: 12 });
+  const pagination = parsePagination(req.query, {
+    defaultLimit: 12,
+  });
+
   const query = await buildPackageQuery(req.query);
   const sort = SORTS[req.query.sort] || SORTS.newest;
 
   const [packages, total] = await Promise.all([
-    Package.find(query).populate("destination", "name city state").select("-itinerary").sort(sort).skip(p.skip).limit(p.limit).lean(),
+    // FIX: Do not exclude itinerary.
+    // Admin edit form needs itinerary to populate existing data.
+    Package.find(query)
+      .populate("destination", "name city state")
+      .sort(sort)
+      .skip(pagination.skip)
+      .limit(pagination.limit)
+      .lean(),
+
     Package.countDocuments(query),
   ]);
-  res.status(200).json({ success: true, count: packages.length, total, page: p.page, pages: paginationMeta(p, total).pages, packages });
+
+  res.status(200).json({
+    success: true,
+    count: packages.length,
+    total,
+    page: pagination.page,
+    pages: paginationMeta(pagination, total).pages,
+    packages,
+  });
 });
 
-// @route GET /api/packages/:id   (includes live seats-left per upcoming departure)
+// GET /api/packages/:id
 const getPackageById = asyncHandler(async (req, res) => {
-  const pkg = await Package.findById(req.params.id).populate("destination", "name city state country").populate("hotels", "name images rating location hotelType").lean();
+  const pkg = await Package.findById(req.params.id)
+    .populate("destination", "name city state country")
+    .populate(
+      "hotels",
+      "name images rating location hotelType"
+    )
+    .lean();
+
   if (!pkg) {
     res.status(404);
     throw new Error("Package not found");
   }
 
-  const upcoming = (pkg.startDates || []).map((d) => startOfDay(d)).filter((d) => d >= startOfDay(new Date())).sort((a, b) => a - b).slice(0, 12);
+  const upcoming = (pkg.startDates || [])
+    .map((date) => startOfDay(date))
+    .filter((date) => date >= startOfDay(new Date()))
+    .sort((a, b) => a - b)
+    .slice(0, 12);
+
   let departures = [];
+
   if (upcoming.length) {
-    const taken = new Map(); // yyyy-mm-dd -> seats already held
-    const held = await Booking.find({ package: pkg._id, travelDate: { $gte: upcoming[0], $lte: new Date(upcoming[upcoming.length - 1].getTime() + MS_PER_DAY) }, ...Booking.activeHoldFilter() })
+    const taken = new Map();
+
+    const held = await Booking.find({
+      package: pkg._id,
+      travelDate: {
+        $gte: upcoming[0],
+        $lte: new Date(
+          upcoming[upcoming.length - 1].getTime() +
+            MS_PER_DAY
+        ),
+      },
+      ...Booking.activeHoldFilter(),
+    })
       .select("travelDate guests")
       .lean();
-    held.forEach((b) => {
-      const k = startOfDay(b.travelDate).toISOString().slice(0, 10);
-      taken.set(k, (taken.get(k) || 0) + b.guests.adults + b.guests.children);
+
+    held.forEach((booking) => {
+      const key = startOfDay(booking.travelDate)
+        .toISOString()
+        .slice(0, 10);
+
+      const seats =
+        (booking.guests?.adults || 0) +
+        (booking.guests?.children || 0);
+
+      taken.set(key, (taken.get(key) || 0) + seats);
     });
-    departures = upcoming.map((d) => ({ date: d, seatsLeft: Math.max(0, pkg.maxGroupSize - (taken.get(d.toISOString().slice(0, 10)) || 0)) }));
+
+    departures = upcoming.map((date) => ({
+      date,
+      seatsLeft: Math.max(
+        0,
+        pkg.maxGroupSize -
+          (taken.get(date.toISOString().slice(0, 10)) || 0)
+      ),
+    }));
   }
-  res.status(200).json({ success: true, package: { ...pkg, departures } });
+
+  res.status(200).json({
+    success: true,
+    package: {
+      ...pkg,
+      departures,
+    },
+  });
 });
 
-// @route GET /api/packages/:id/availability?date=&guests=
+// GET /api/packages/:id/availability?date=&guests=
 const checkAvailability = asyncHandler(async (req, res) => {
-  const pkg = await Package.findById(req.params.id).select("maxGroupSize isActive startDates");
+  const pkg = await Package.findById(req.params.id).select(
+    "maxGroupSize isActive startDates"
+  );
+
   if (!pkg || !pkg.isActive) {
     res.status(404);
     throw new Error("Package not found");
   }
+
   const date = startOfDay(req.query.date);
+
   const rows = await Booking.aggregate([
-    { $match: { package: pkg._id, travelDate: sameDayFilter(date), ...Booking.activeHoldFilter() } },
-    { $group: { _id: null, adults: { $sum: "$guests.adults" }, children: { $sum: "$guests.children" } } },
+    {
+      $match: {
+        package: pkg._id,
+        travelDate: sameDayFilter(date),
+        ...Booking.activeHoldFilter(),
+      },
+    },
+    {
+      $group: {
+        _id: null,
+        adults: { $sum: "$guests.adults" },
+        children: { $sum: "$guests.children" },
+      },
+    },
   ]);
-  const seatsLeft = Math.max(0, pkg.maxGroupSize - ((rows[0]?.adults || 0) + (rows[0]?.children || 0)));
-  const isDeparture = !pkg.startDates?.length || pkg.startDates.some((d) => startOfDay(d).getTime() === date.getTime());
-  res.status(200).json({ success: true, available: isDeparture && seatsLeft >= (Number(req.query.guests) || 1), seatsLeft, isDeparture });
+
+  const seatsLeft = Math.max(
+    0,
+    pkg.maxGroupSize -
+      ((rows[0]?.adults || 0) + (rows[0]?.children || 0))
+  );
+
+  const isDeparture =
+    !pkg.startDates?.length ||
+    pkg.startDates.some(
+      (departureDate) =>
+        startOfDay(departureDate).getTime() === date.getTime()
+    );
+
+  res.status(200).json({
+    success: true,
+    available:
+      isDeparture &&
+      seatsLeft >= (Number(req.query.guests) || 1),
+    seatsLeft,
+    isDeparture,
+  });
 });
 
+// Parse regular fields and JSON fields from request body.
 const parseBody = (body) => {
   const data = pick(body, FIELDS);
+
   for (const [field, fallback] of Object.entries(JSON_FIELDS)) {
-    if (body[field] !== undefined) data[field] = parseJsonField(body[field], field, fallback);
+    if (body[field] !== undefined) {
+      data[field] = parseJsonField(
+        body[field],
+        field,
+        fallback
+      );
+    }
   }
+
   return data;
 };
 
-// @route POST /api/packages   (admin)
+// POST /api/packages
 const createPackage = asyncHandler(async (req, res) => {
-  const gallery = (req.files || []).map((f) => ({ url: f.path, public_id: f.filename }));
-  const pkg = await Package.create({ ...parseBody(req.body), gallery, createdBy: req.user._id });
+  const gallery = (req.files || []).map((file) => ({
+    url: file.path,
+    public_id: file.filename,
+  }));
+
+  const pkg = await Package.create({
+    ...parseBody(req.body),
+    gallery,
+    createdBy: req.user._id,
+  });
+
   cache.invalidate("packages");
-  res.status(201).json({ success: true, package: pkg });
+
+  res.status(201).json({
+    success: true,
+    package: pkg,
+  });
 });
 
-// @route PUT /api/packages/:id   (admin)
+// PUT /api/packages/:id
 const updatePackage = asyncHandler(async (req, res) => {
   const pkg = await Package.findById(req.params.id);
+
   if (!pkg) {
     res.status(404);
     throw new Error("Package not found");
   }
-  Object.assign(pkg, parseBody(req.body));
-  if (req.files?.length) pkg.gallery = [...pkg.gallery, ...req.files.map((f) => ({ url: f.path, public_id: f.filename }))];
+
+  const updates = parseBody(req.body);
+
+  // Apply only fields sent in the request.
+  // If itinerary is omitted, preserve the existing itinerary.
+  Object.assign(pkg, updates);
+
+  if (req.files?.length) {
+    pkg.gallery = [
+      ...(pkg.gallery || []),
+      ...req.files.map((file) => ({
+        url: file.path,
+        public_id: file.filename,
+      })),
+    ];
+  }
+
   await pkg.save();
+
   cache.invalidate("packages");
-  res.status(200).json({ success: true, package: pkg });
+
+  res.status(200).json({
+    success: true,
+    package: pkg,
+  });
 });
 
-// @route DELETE /api/packages/:id   (admin) - packages with booking history are deactivated, not deleted
+// DELETE /api/packages/:id
 const deletePackage = asyncHandler(async (req, res) => {
   const pkg = await Package.findById(req.params.id);
+
   if (!pkg) {
     res.status(404);
     throw new Error("Package not found");
   }
+
   cache.invalidate("packages");
+
   if (await Booking.exists({ package: pkg._id })) {
     pkg.isActive = false;
     await pkg.save();
-    return res.status(200).json({ success: true, message: "Package has bookings, so it was deactivated instead of deleted" });
+
+    return res.status(200).json({
+      success: true,
+      message:
+        "Package has bookings, so it was deactivated instead of deleted",
+    });
   }
-  await Promise.all(pkg.gallery.map((img) => deleteImage(img.public_id)));
+
+  await Promise.all(
+    (pkg.gallery || []).map((image) =>
+      deleteImage(image.public_id)
+    )
+  );
+
   await pkg.deleteOne();
-  res.status(200).json({ success: true, message: "Package deleted successfully" });
+
+  res.status(200).json({
+    success: true,
+    message: "Package deleted successfully",
+  });
 });
 
-module.exports = { getPackages, getPackageById, checkAvailability, createPackage, updatePackage, deletePackage, buildPackageQuery };
+module.exports = {
+  getPackages,
+  getPackageById,
+  checkAvailability,
+  createPackage,
+  updatePackage,
+  deletePackage,
+  buildPackageQuery,
+};
