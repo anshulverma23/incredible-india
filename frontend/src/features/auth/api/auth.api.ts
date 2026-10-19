@@ -9,18 +9,18 @@ import type {
 
 export const authApi = {
   register: (body: RegisterPayload) =>
-    api.post<AuthResponse>("/api/auth/register", body),
-  login: (body: LoginPayload) => api.post<AuthResponse>("/api/auth/login", body),
+    api.post<AuthResponse>("/auth/register", body),
+  login: (body: LoginPayload) => api.post<AuthResponse>("/auth/login", body),
   google: (idToken: string) =>
-    api.post<AuthResponse>("/api/auth/google", { idToken }),
+    api.post<AuthResponse>("/auth/google", { idToken }),
   forgotPassword: (email: string) =>
-    api.post<{ message: string }>("/api/auth/forgot-password", { email }),
+    api.post<{ message: string }>("/auth/forgot-password", { email }),
   resetPassword: (token: string, password: string) =>
-    api.put<AuthResponse>(`/api/auth/reset-password/${token}`, { password }),
+    api.put<AuthResponse>(`/auth/reset-password/${token}`, { password }),
   verifyEmail: (token: string) =>
-    api.get<{ message: string }>(`/api/auth/verify-email/${token}`),
+    api.get<{ message: string }>(`/auth/verify-email/${token}`),
   changePassword: (body: ChangePasswordPayload) =>
-    api.put<{ message: string }>("/api/auth/change-password", body),
-  me: () => api.get<{ user: User }>("/api/auth/me"),
-  logout: () => api.post<{ message: string }>("/api/auth/logout"),
+    api.put<{ message: string }>("/auth/change-password", body),
+  me: () => api.get<{ user: User }>("/auth/me"),
+  logout: () => api.post<{ message: string }>("/auth/logout"),
 };
