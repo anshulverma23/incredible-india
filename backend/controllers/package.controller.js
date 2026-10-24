@@ -1,3 +1,4 @@
+
 const asyncHandler = require("express-async-handler");
 const mongoose = require("mongoose");
 const Package = require("../models/package.model");
@@ -48,6 +49,15 @@ const list = (value) =>
         .map((item) => item.trim())
         .filter(Boolean)
     : [];
+
+// Resolve either a MongoDB ObjectId or a package slug.
+const getPackageFilter = (identifier) => {
+  if (mongoose.isValidObjectId(identifier)) {
+    return { _id: identifier };
+  }
+
+  return { slug: String(identifier).toLowerCase() };
+};
 
 // Build search filters from query parameters.
 const buildPackageQuery = async (queryParams) => {
@@ -178,8 +188,6 @@ const getPackages = asyncHandler(async (req, res) => {
   const sort = SORTS[req.query.sort] || SORTS.newest;
 
   const [packages, total] = await Promise.all([
-    // FIX: Do not exclude itinerary.
-    // Admin edit form needs itinerary to populate existing data.
     Package.find(query)
       .populate("destination", "name city state")
       .sort(sort)
@@ -201,13 +209,14 @@ const getPackages = asyncHandler(async (req, res) => {
 });
 
 // GET /api/packages/:id
+// Supports both /packages/:mongoId and /packages/:slug
 const getPackageById = asyncHandler(async (req, res) => {
-  const pkg = await Package.findById(req.params.id)
+  const pkg = await Package.findOne(
+    getPackageFilter(req.params.id)
+  )
     .populate("destination", "name city state country")
-    .populate(
-      "hotels",
-      "name images rating location hotelType"
-    )
+    .populate("hotels", "name images rating location hotelType")
+    .populate("blog", "title slug")
     .lean();
 
   if (!pkg) {
@@ -273,9 +282,9 @@ const getPackageById = asyncHandler(async (req, res) => {
 
 // GET /api/packages/:id/availability?date=&guests=
 const checkAvailability = asyncHandler(async (req, res) => {
-  const pkg = await Package.findById(req.params.id).select(
-    "maxGroupSize isActive startDates"
-  );
+  const pkg = await Package.findOne(
+    getPackageFilter(req.params.id)
+  ).select("maxGroupSize isActive startDates");
 
   if (!pkg || !pkg.isActive) {
     res.status(404);
@@ -364,6 +373,7 @@ const createPackage = asyncHandler(async (req, res) => {
 
 // PUT /api/packages/:id
 const updatePackage = asyncHandler(async (req, res) => {
+  // Keep admin update endpoint compatible with MongoDB IDs.
   const pkg = await Package.findById(req.params.id);
 
   if (!pkg) {
@@ -373,8 +383,7 @@ const updatePackage = asyncHandler(async (req, res) => {
 
   const updates = parseBody(req.body);
 
-  // Apply only fields sent in the request.
-  // If itinerary is omitted, preserve the existing itinerary.
+  // Preserve fields that were not submitted.
   Object.assign(pkg, updates);
 
   if (req.files?.length) {
