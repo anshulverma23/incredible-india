@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Clock, Users, Star, ArrowRight } from "lucide-react"
 import { packageApi } from "@/features/packages/api/package.api"
+import { packagePath } from "@/features/packages/lib/package-path"
 import type { TourPackage } from "@/features/packages/types"
 
 export function Tours() {
@@ -115,7 +116,7 @@ export function Tours() {
                             ₹{pkg.price?.toLocaleString()}
                           </p>
                         </div>
-                        <Button className="bg-primary text-primary-foreground hover:bg-primary/90" render={<Link to={`/packages/${pkg._id}`} />}>
+                        <Button className="bg-primary text-primary-foreground hover:bg-primary/90" render={<Link to={packagePath(pkg)} />}>
                           View Details
                         </Button>
                       </div>

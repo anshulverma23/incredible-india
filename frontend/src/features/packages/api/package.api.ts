@@ -5,7 +5,8 @@ import type { TourPackage } from "@/features/packages/types";
 export const packageApi = {
   list: (params: QueryParams = {}) =>
     api.get<PaginatedResponse<TourPackage>>("/packages", params),
-  get: (id: string) => api.get<{ package: TourPackage }>(`/packages/${id}`),
+  /** `idOrSlug` accepts the SEO slug (public pages) or the MongoDB id (admin / old links). */
+  get: (idOrSlug: string) => api.get<{ package: TourPackage }>(`/packages/${encodeURIComponent(idOrSlug)}`),
   create: (formData: FormData) => api.post("/packages", formData),
   update: (id: string, formData: FormData) =>
     api.put(`/packages/${id}`, formData),

@@ -47,7 +47,7 @@ export interface ItineraryPlan {
   droppedForBudget: string[]
   notes: string[]
   suggestions: {
-    packages: { _id: string; name: string; price: number; duration: { days: number; nights: number }; packageType: string; rating: number }[]
+    packages: { _id: string; slug?: string; name: string; price: number; duration: { days: number; nights: number }; packageType: string; rating: number }[]
     hotels: { _id: string; name: string; rating: number; hotelType: string; fromPrice?: number; overBudgetBy?: number; location: { city: string } }[]
   }
 }

@@ -43,6 +43,7 @@ export default function AdminPackagesPage() {
 
   const fields: AdminField[] = [
     { name: "name", label: "Package Name", type: "text", required: true },
+    { name: "slug", label: "URL Slug (SEO)", type: "text", hint: "Optional. Leave blank to auto-generate from the name, e.g. kashmir-paradise-tour" },
     { name: "destination", label: "Destination", type: "select", required: true, options: destinations.map((d) => ({ label: d.name, value: d._id })) },
     { name: "packageType", label: "Package Type", type: "select", required: true, options: PACKAGE_TYPES },
     { name: "days", label: "Duration (days)", type: "number", required: true },
@@ -59,6 +60,9 @@ export default function AdminPackagesPage() {
   const handleSubmit = async (values: Record<string, unknown>) => {
     const formData = new FormData()
     formData.append("name", String(values.name || ""))
+    // blank = backend generates it from the name (create) or keeps the current one (edit)
+    const slug = String(values.slug || "").trim()
+    if (slug) formData.append("slug", slug)
     formData.append("destination", String(values.destination || ""))
     formData.append("packageType", String(values.packageType || "Cultural"))
     formData.append("description", String(values.description || ""))
@@ -101,6 +105,7 @@ export default function AdminPackagesPage() {
 
   const columns: AdminColumn<TourPackage>[] = [
     { key: "name", label: "Name" },
+    { key: "slug", label: "URL", render: (p) => <span className="text-xs text-muted-foreground">/packages/{p.slug || "-"}</span> },
     { key: "packageType", label: "Type", render: (p) => <Badge variant="outline">{p.packageType}</Badge> },
     { key: "duration", label: "Duration", render: (p) => `${p.duration.days}D / ${p.duration.nights}N` },
     { key: "price", label: "Price", render: (p) => formatINR(p.price) },
@@ -109,6 +114,7 @@ export default function AdminPackagesPage() {
   const initialValues = editing
     ? {
         name: editing.name,
+        slug: editing.slug || "",
         destination: typeof editing.destination === "object" ? editing.destination._id : editing.destination,
         packageType: editing.packageType,
         days: editing.duration.days,

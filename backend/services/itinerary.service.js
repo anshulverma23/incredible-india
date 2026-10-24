@@ -210,7 +210,7 @@ const suggestPackages = (destinationId, { days, budget, travellers }) =>
     price: { $lte: Math.floor(budget / Math.max(1, travellers)) },
     "duration.days": { $gte: Math.max(1, days - 1), $lte: days + 1 },
   })
-    .select("name price duration packageType rating gallery")
+    .select("name slug price duration packageType rating gallery")
     .sort({ rating: -1, price: 1 })
     .limit(3)
     .lean();

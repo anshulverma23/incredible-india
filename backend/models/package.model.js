@@ -1,5 +1,6 @@
 
 const mongoose = require("mongoose");
+const { generateUniqueSlug } = require("../utils/slugify");
 
 const itineraryDaySchema = new mongoose.Schema(
   {
@@ -96,42 +97,22 @@ const packageSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Generate a unique, URL-friendly slug from package name.
+// Slug rules (SEO-friendly URL):
+//  - create            -> built from the name (or from the slug the admin typed)
+//  - rename            -> slug is NOT changed, so Google/old links keep working
+//  - admin edits slug  -> cleaned (lowercase, hyphens) and kept unique
+//  - old package without a slug -> gets one the next time it is saved
 packageSchema.pre("validate", async function () {
-  if (!this.name) return;
+  const adminChangedSlug = this.isModified("slug") && Boolean(this.slug);
+  if (this.slug && !adminChangedSlug) return;
 
-  // Generate only when creating, changing the name,
-  // or repairing an older document without a slug.
-  if (
-    !this.isNew &&
-    !this.isModified("name") &&
-    this.slug
-  ) {
-    return;
-  }
+  const source = adminChangedSlug ? this.slug : this.name;
+  if (!source) return;
 
-  const baseSlug = this.name
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-
-  if (!baseSlug) {
-    throw new Error("Package name cannot generate a valid slug");
-  }
-
-  const existing = await this.constructor
-    .findOne({
-      slug: baseSlug,
-      _id: { $ne: this._id },
-    })
-    .select("_id")
-    .lean();
-
-  this.slug = existing
-    ? `${baseSlug}-${this._id.toString().slice(-6)}`
-    : baseSlug;
+  this.slug = await generateUniqueSlug(this.constructor, source, {
+    excludeId: this._id,
+    fallback: `package-${this._id.toString().slice(-6)}`,
+  });
 });
 
 // Existing indexes

@@ -8,17 +8,20 @@ import { Select } from "@/components/ui/select"
 import { Alert } from "@/components/ui/alert"
 import { PageLoader } from "@/components/ui/spinner"
 import { StarRating } from "@/components/common/star-rating"
+import { PageMeta } from "@/components/common/page-meta"
 import { WishlistButton } from "@/features/wishlist/components/wishlist-button"
 import { ReviewSection } from "@/features/reviews/components/review-section"
 import { formatDate, formatINR } from "@/lib/utils"
 import { useAuth } from "@/features/auth/hooks/useAuth"
 import { packageApi } from "@/features/packages/api/package.api"
+import { isObjectId, packagePath } from "@/features/packages/lib/package-path"
 import { bookingApi } from "@/features/bookings/api/booking.api"
 import { ApiError } from "@/lib/axios"
 import type { TourPackage } from "@/features/packages/types"
 
 export default function PackageDetailsPage() {
-  const { id = "" } = useParams<{ id: string }>()
+  // URL is /packages/:slug (old links with the MongoDB id still work and are redirected to the slug)
+  const { slug = "" } = useParams<{ slug: string }>()
   const navigate = useNavigate()
   const { user } = useAuth()
 
@@ -34,11 +37,17 @@ export default function PackageDetailsPage() {
 
   useEffect(() => {
     packageApi
-      .get(id)
-      .then((res) => setPkg(res.package))
+      .get(slug)
+      .then((res) => {
+        setPkg(res.package)
+        // Old id-based link -> show the SEO slug in the address bar
+        if (isObjectId(slug) && res.package.slug && res.package.slug !== slug) {
+          navigate(packagePath(res.package), { replace: true })
+        }
+      })
       .catch(() => setPkg(null))
       .finally(() => setLoading(false))
-  }, [id])
+  }, [slug, navigate])
 
   if (loading) return <PageLoader label="Loading package..." />
   if (!pkg) return (
@@ -78,8 +87,15 @@ export default function PackageDetailsPage() {
     }
   }
 
+  const metaDescription = pkg.description.replace(/\s+/g, " ").trim().slice(0, 155)
+
   return (
     <main className="min-h-screen pt-24 pb-20 bg-background">
+      <PageMeta
+        title={`${pkg.name} - ${pkg.duration.days} Days / ${pkg.duration.nights} Nights${destinationName ? ` ${destinationName}` : ""} Tour Package | Incredible India Travel`}
+        description={metaDescription}
+        canonical={packagePath(pkg)}
+      />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-8">
           <div className="relative aspect-[16/8] overflow-hidden rounded-2xl bg-muted">

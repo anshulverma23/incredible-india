@@ -11,9 +11,11 @@ const { parseJsonField, pick } = require("../utils/parseJson");
 const { startOfDay, MS_PER_DAY } = require("../utils/pricing");
 const { sameDayFilter } = require("../services/availability.service");
 const cache = require("../utils/cache");
+const { isObjectIdString } = require("../utils/slugify");
 
 const FIELDS = [
   "name",
+  "slug", // optional: admin can set a custom URL slug; blank = auto-generated from the name
   "description",
   "destination",
   "price",
@@ -50,13 +52,11 @@ const list = (value) =>
         .filter(Boolean)
     : [];
 
-// Resolve either a MongoDB ObjectId or a package slug.
+// Resolve either a MongoDB ObjectId (old links) or a package slug (new SEO links).
 const getPackageFilter = (identifier) => {
-  if (mongoose.isValidObjectId(identifier)) {
-    return { _id: identifier };
-  }
-
-  return { slug: String(identifier).toLowerCase() };
+  const value = String(identifier);
+  if (isObjectIdString(value)) return { _id: value };
+  return { slug: value.toLowerCase() };
 };
 
 // Build search filters from query parameters.
@@ -216,7 +216,6 @@ const getPackageById = asyncHandler(async (req, res) => {
   )
     .populate("destination", "name city state country")
     .populate("hotels", "name images rating location hotelType")
-    .populate("blog", "title slug")
     .lean();
 
   if (!pkg) {
@@ -373,8 +372,8 @@ const createPackage = asyncHandler(async (req, res) => {
 
 // PUT /api/packages/:id
 const updatePackage = asyncHandler(async (req, res) => {
-  // Keep admin update endpoint compatible with MongoDB IDs.
-  const pkg = await Package.findById(req.params.id);
+  // Admin can pass either the MongoDB id or the slug.
+  const pkg = await Package.findOne(getPackageFilter(req.params.id));
 
   if (!pkg) {
     res.status(404);
@@ -408,7 +407,7 @@ const updatePackage = asyncHandler(async (req, res) => {
 
 // DELETE /api/packages/:id
 const deletePackage = asyncHandler(async (req, res) => {
-  const pkg = await Package.findById(req.params.id);
+  const pkg = await Package.findOne(getPackageFilter(req.params.id));
 
   if (!pkg) {
     res.status(404);

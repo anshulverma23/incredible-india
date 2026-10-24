@@ -3,6 +3,7 @@ import { Calendar } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { StarRating } from "@/components/common/star-rating"
 import { formatINR } from "@/lib/utils"
+import { packagePath } from "@/features/packages/lib/package-path"
 import type { TourPackage } from "@/features/packages/types"
 
 export function PackageCard({ pkg }: { pkg: TourPackage }) {
@@ -10,7 +11,7 @@ export function PackageCard({ pkg }: { pkg: TourPackage }) {
   const destinationName = typeof pkg.destination === "object" ? pkg.destination.name : ""
 
   return (
-    <Link to={`/packages/${pkg.slug || pkg._id}`} className="group block overflow-hidden rounded-2xl border border-border bg-card transition-shadow hover:shadow-lg">
+    <Link to={packagePath(pkg)} className="group block overflow-hidden rounded-2xl border border-border bg-card transition-shadow hover:shadow-lg">
       <div className="relative aspect-[4/3] overflow-hidden bg-muted">
         {image ? (
           <img loading="lazy" decoding="async" src={image} alt={pkg.name} className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />

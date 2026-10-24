@@ -12,6 +12,7 @@ import { ApiError } from "@/lib/axios"
 import { useAuth } from "@/features/auth/hooks/useAuth"
 import { useToast } from "@/hooks/useToast"
 import { itineraryApi } from "@/features/itinerary/api/itinerary.api"
+import { packagePath } from "@/features/packages/lib/package-path"
 import type { ItineraryInput, ItineraryPlan, PlannableDestination, SavedItinerary } from "@/features/itinerary/types"
 
 const INTERESTS = ["Adventure", "Nature", "Culture", "Heritage", "Spiritual", "Food", "Relaxation", "Shopping"]
@@ -285,7 +286,7 @@ export default function PlanTripPage() {
                         <p className="mb-2 flex items-center gap-1.5 text-sm text-muted-foreground"><Package className="size-4" /> Ready-made packages within your budget</p>
                         <div className="grid gap-2 sm:grid-cols-2">
                           {plan.suggestions.packages.map((p) => (
-                            <Link key={p._id} to={`/packages/${p._id}`} className="rounded-lg border border-border p-3 text-sm transition-colors hover:border-primary">
+                            <Link key={p._id} to={packagePath(p)} className="rounded-lg border border-border p-3 text-sm transition-colors hover:border-primary">
                               <p className="font-medium text-foreground">{p.name}</p>
                               <p className="text-xs text-muted-foreground">{p.duration.days}D/{p.duration.nights}N · {p.packageType} · {formatINR(p.price)}/person</p>
                             </Link>
