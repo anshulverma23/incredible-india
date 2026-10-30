@@ -1,8 +1,10 @@
+
 import type { CloudImage } from "@/types"
 import type { Destination } from "@/features/destinations/types"
 
 export interface Hotel {
   _id: string
+  slug?: string
   name: string
   description: string
   images: CloudImage[]
