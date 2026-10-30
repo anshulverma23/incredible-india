@@ -219,7 +219,7 @@ const suggestHotels = async (destination, { days, stayBudget, travellers }) => {
   const nights = Math.max(1, days - 1);
   const roomsNeeded = Math.ceil(travellers / 2);
   const hotels = await Hotel.find({ isActive: true, $or: [{ destination: destination._id }, { "location.city": safeRegex(destination.city) }] })
-    .select("name images rating hotelType location")
+    .select("name slug images rating hotelType location")
     .limit(30)
     .lean();
   if (!hotels.length) return [];

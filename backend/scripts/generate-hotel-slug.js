@@ -1,74 +1,43 @@
-
+// One-off migration: give every EXISTING hotel a slug (new hotels get one automatically on create).
+// Usage:  npm run migrate:hotel-slugs            (dry run - only prints what would change)
+//         npm run migrate:hotel-slugs -- --apply (actually updates the database)
 require("dotenv").config();
-
 const mongoose = require("mongoose");
 const Hotel = require("../models/hotel.model");
+const { generateUniqueSlug } = require("../utils/slugify");
 
-const generateSlug = (name) => {
-  return (
-    String(name || "")
-      .normalize("NFKD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "") || "hotel"
-  );
-};
+const APPLY = process.argv.includes("--apply");
 
-async function migrateHotelSlugs() {
-  try {
-    const mongoUri =
-      process.env.MONGODB_URI || process.env.MONGO_URI;
+(async () => {
+  const uri = process.env.MONGODB_URI || process.env.MONGO_URI;
+  if (!uri) throw new Error("MongoDB connection URI not found in .env");
+  await mongoose.connect(uri);
 
-    if (!mongoUri) {
-      throw new Error("MongoDB connection URI not found in .env");
-    }
+  // raw collection: also finds docs where slug is missing, null or ""
+  const col = Hotel.collection;
+  const missing = await col
+    .find({ $or: [{ slug: { $exists: false } }, { slug: null }, { slug: "" }] })
+    .project({ name: 1 })
+    .toArray();
 
-    await mongoose.connect(mongoUri);
+  console.log(`${missing.length} hotel(s) without a slug`);
 
-    console.log("MongoDB connected");
+  const reserved = new Set();
+  for (const doc of missing) {
+    const slug = await generateUniqueSlug(Hotel, doc.name, {
+      excludeId: doc._id,
+      fallback: `hotel-${String(doc._id).slice(-6)}`,
+      reserved,
+    });
+    reserved.add(slug);
 
-    const hotels = await Hotel.find({
-      $or: [
-        { slug: { $exists: false } },
-        { slug: null },
-        { slug: "" },
-      ],
-    }).select("_id name slug");
-
-    console.log(`Found ${hotels.length} hotels without slugs`);
-
-    let updated = 0;
-
-    for (const hotel of hotels) {
-      const baseSlug = generateSlug(hotel.name);
-
-      let slug = baseSlug;
-      let count = 1;
-
-      while (await Hotel.exists({ slug })) {
-        count += 1;
-        slug = `${baseSlug}-${count}`;
-      }
-
-      await Hotel.updateOne(
-        { _id: hotel._id },
-        { $set: { slug } }
-      );
-
-      updated++;
-
-      console.log(`${hotel.name} -> ${slug}`);
-    }
-
-    console.log(`Migration completed. Updated: ${updated}`);
-  } catch (error) {
-    console.error("Hotel slug migration failed:", error);
-    process.exitCode = 1;
-  } finally {
-    await mongoose.disconnect();
+    console.log(`${String(doc._id)}  "${doc.name}"  ->  /hotels/${slug}`);
+    if (APPLY) await col.updateOne({ _id: doc._id }, { $set: { slug } });
   }
-}
 
-migrateHotelSlugs();
+  console.log(APPLY ? "Done." : "Dry run only. Re-run with --apply to update.");
+  await mongoose.disconnect();
+})().catch((e) => {
+  console.error(e.message);
+  process.exit(1);
+});

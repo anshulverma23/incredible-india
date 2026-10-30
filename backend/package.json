@@ -9,6 +9,8 @@
     "dev": "npx nodemon server.js",
     "seed": "node utils/seedData.js",
     "migrate:roles": "node scripts/migrate-roles.js",
+    "migrate:slugs": "node scripts/backfill-package-slug.js",
+    "migrate:hotel-slugs": "node scripts/generate-hotel-slug.js",
     "test": "jest --runInBand --forceExit",
     "test:watch": "jest --watch",
     "test:coverage": "jest --runInBand --forceExit --coverage"
@@ -34,7 +36,7 @@
     "morgan": "^1.10.0",
     "multer": "^2.2.0",
     "node-cron": "^4.6.0",
-    "nodemailer": "^6.9.16",
+    "nodemailer": "^10.3.1",
     "pdfkit": "^0.15.1",
     "razorpay": "^2.9.5",
     "socket.io": "^4.8.4",

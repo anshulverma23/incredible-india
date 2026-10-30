@@ -22,7 +22,7 @@ const getMyBookings = asyncHandler(async (req, res) => {
 
   const [bookings, total] = await Promise.all([
     Booking.find(query)
-      .populate("hotel", "name images location")
+      .populate("hotel", "name slug images location")
       .populate("room", "roomType price")
       .populate("package", "name gallery duration")
       .sort({ createdAt: -1 })
@@ -149,7 +149,7 @@ const updateBookingStatus = asyncHandler(async (req, res) => {
 
 // @route GET /api/bookings/:id/invoice   (only once the booking has been paid)
 const generateInvoice = asyncHandler(async (req, res) => {
-  const booking = await Booking.findById(req.params.id).populate("user", "name email phone").populate("hotel", "name location").populate("package", "name");
+  const booking = await Booking.findById(req.params.id).populate("user", "name email phone").populate("hotel", "name slug location").populate("package", "name slug");
   if (!booking) {
     res.status(404);
     throw new Error("Booking not found");

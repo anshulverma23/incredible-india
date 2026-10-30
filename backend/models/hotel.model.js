@@ -1,5 +1,6 @@
 
 const mongoose = require("mongoose");
+const { generateUniqueSlug } = require("../utils/slugify");
 
 const hotelSchema = new mongoose.Schema(
   {
@@ -9,13 +10,13 @@ const hotelSchema = new mongoose.Schema(
       trim: true,
     },
 
-    // SEO-friendly hotel URL
+    // SEO-friendly URL slug (e.g. "taj-lake-palace-udaipur")
     slug: {
       type: String,
-      trim: true,
-      lowercase: true,
       unique: true,
       sparse: true,
+      trim: true,
+      lowercase: true,
     },
 
     description: {
@@ -99,6 +100,24 @@ const hotelSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Slug rules (same as packages):
+//  - create            -> built from the name (or from the slug the admin typed)
+//  - rename            -> slug is NOT changed, so Google/old links keep working
+//  - admin edits slug  -> cleaned (lowercase, hyphens) and kept unique
+//  - old hotel without a slug -> gets one the next time it is saved
+hotelSchema.pre("validate", async function () {
+  const adminChangedSlug = this.isModified("slug") && Boolean(this.slug);
+  if (this.slug && !adminChangedSlug) return;
+
+  const source = adminChangedSlug ? this.slug : this.name;
+  if (!source) return;
+
+  this.slug = await generateUniqueSlug(this.constructor, source, {
+    excludeId: this._id,
+    fallback: `hotel-${this._id.toString().slice(-6)}`,
+  });
+});
+
 // Existing indexes
 hotelSchema.index({
   name: "text",
@@ -109,11 +128,5 @@ hotelSchema.index({
 hotelSchema.index({ isActive: 1, rating: -1 });
 hotelSchema.index({ isActive: 1, hotelType: 1 });
 hotelSchema.index({ amenities: 1 });
-
-// Slug lookup
-hotelSchema.index(
-  { slug: 1 },
-  { unique: true, sparse: true }
-);
 
 module.exports = mongoose.model("Hotel", hotelSchema);

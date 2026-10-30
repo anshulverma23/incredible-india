@@ -3,16 +3,14 @@ import { MapPin } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { StarRating } from "@/components/common/star-rating"
 import { formatINR } from "@/lib/utils"
+import { hotelPath } from "@/features/hotels/lib/hotel-path"
 import type { Hotel } from "@/features/hotels/types"
 
 export function HotelCard({ hotel }: { hotel: Hotel }) {
   const image = hotel.images?.[0]?.url
 
   return (
-    <Link
-  to={`/hotels/${hotel.slug || hotel._id}`}
-  className="group block overflow-hidden rounded-2xl border border-border bg-card transition-shadow hover:shadow-lg"
->
+    <Link to={hotelPath(hotel)} className="group block overflow-hidden rounded-2xl border border-border bg-card transition-shadow hover:shadow-lg">
       <div className="relative aspect-[4/3] overflow-hidden bg-muted">
         {image ? (
           <img loading="lazy" decoding="async" src={image} alt={hotel.name} className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />

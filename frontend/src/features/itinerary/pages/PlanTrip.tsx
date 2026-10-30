@@ -13,6 +13,7 @@ import { useAuth } from "@/features/auth/hooks/useAuth"
 import { useToast } from "@/hooks/useToast"
 import { itineraryApi } from "@/features/itinerary/api/itinerary.api"
 import { packagePath } from "@/features/packages/lib/package-path"
+import { hotelPath } from "@/features/hotels/lib/hotel-path"
 import type { ItineraryInput, ItineraryPlan, PlannableDestination, SavedItinerary } from "@/features/itinerary/types"
 
 const INTERESTS = ["Adventure", "Nature", "Culture", "Heritage", "Spiritual", "Food", "Relaxation", "Shopping"]
@@ -299,7 +300,7 @@ export default function PlanTripPage() {
                         <p className="mb-2 flex items-center gap-1.5 text-sm text-muted-foreground"><Hotel className="size-4" /> Hotels for your stay</p>
                         <div className="grid gap-2 sm:grid-cols-2">
                           {plan.suggestions.hotels.map((h) => (
-                            <Link key={h._id} to={`/hotels/${h._id}`} className="rounded-lg border border-border p-3 text-sm transition-colors hover:border-primary">
+                            <Link key={h._id} to={hotelPath(h)} className="rounded-lg border border-border p-3 text-sm transition-colors hover:border-primary">
                               <p className="font-medium text-foreground">{h.name}</p>
                               <p className="text-xs text-muted-foreground">{h.location.city} · {h.hotelType}{h.fromPrice ? ` · from ${formatINR(h.fromPrice)}/night` : ""}</p>
                               {h.overBudgetBy ? <p className="mt-0.5 text-[11px] text-destructive">≈ {formatINR(h.overBudgetBy)} over your stay budget</p> : null}

@@ -18,9 +18,11 @@ const {
 const { startOfDay } = require("../utils/pricing");
 const { cheapestRoomPrices } = require("../utils/roomPrices");
 const cache = require("../utils/cache");
+const { idOrSlugFilter } = require("../utils/slugify");
 
 const FIELDS = [
   "name",
+  "slug", // optional: admin can set a custom URL slug; blank = auto-generated from the name
   "description",
   "hotelType",
   "destination",
@@ -35,39 +37,13 @@ const list = (v) =>
         .filter(Boolean)
     : [];
 
-/* =========================================
-   HOTEL SLUG HELPERS
-========================================= */
+// Resolve either a MongoDB ObjectId (old links) or a hotel slug (new SEO links).
+const getHotelFilter = idOrSlugFilter;
 
-const generateSlug = (name) => {
-  return (
-    String(name || "")
-      .normalize("NFKD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "") || "hotel"
-  );
-};
-
-const makeUniqueHotelSlug = async (name, excludeId = null) => {
-  const baseSlug = generateSlug(name);
-
-  let slug = baseSlug;
-  let count = 1;
-
-  while (
-    await Hotel.exists({
-      slug,
-      ...(excludeId ? { _id: { $ne: excludeId } } : {}),
-    })
-  ) {
-    count += 1;
-    slug = `${baseSlug}-${count}`;
-  }
-
-  return slug;
+// Same, but returns only the hotel's _id (used by routes that need the real id).
+const resolveHotelId = async (identifier) => {
+  const hotel = await Hotel.findOne(getHotelFilter(identifier)).select("_id").lean();
+  return hotel?._id || null;
 };
 
 /* =========================================
@@ -248,19 +224,11 @@ const getHotels = asyncHandler(async (req, res) => {
 
 /* =========================================
    GET HOTEL BY ID OR SLUG
-   GET /api/hotels/:id
+   GET /api/hotels/:id   (:id = MongoDB id or slug)
 ========================================= */
 
 const getHotelById = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-
-  // Old URLs use MongoDB ObjectId.
-  // New URLs use hotel slug.
-  const filter = mongoose.isValidObjectId(id)
-    ? { _id: id }
-    : { slug: id };
-
-  const hotel = await Hotel.findOne(filter)
+  const hotel = await Hotel.findOne(getHotelFilter(req.params.id))
     .populate("destination", "name city state")
     .lean();
 
@@ -335,8 +303,7 @@ const createHotel = asyncHandler(async (req, res) => {
     throw new Error("Hotel name is required");
   }
 
-  // Automatically generate a unique slug.
-  hotelData.slug = await makeUniqueHotelSlug(hotelData.name);
+  // slug: typed by the admin (cleaned) or auto-generated from the name by the model.
 
   const hotel = await Hotel.create({
     ...hotelData,
@@ -358,7 +325,8 @@ const createHotel = asyncHandler(async (req, res) => {
 ========================================= */
 
 const updateHotel = asyncHandler(async (req, res) => {
-  const hotel = await Hotel.findById(req.params.id);
+  // Admin can pass either the MongoDB id or the slug.
+  const hotel = await Hotel.findOne(getHotelFilter(req.params.id));
 
   if (!hotel) {
     res.status(404);
@@ -369,15 +337,8 @@ const updateHotel = asyncHandler(async (req, res) => {
 
   const updatedData = parseBody(req.body);
 
-  if (
-    updatedData.name &&
-    updatedData.name.trim() !== hotel.name
-  ) {
-    updatedData.slug = await makeUniqueHotelSlug(
-      updatedData.name,
-      hotel._id
-    );
-  }
+  // A blank slug means "keep the current one" (a rename never changes the URL).
+  if (!updatedData.slug) delete updatedData.slug;
 
   Object.assign(hotel, updatedData);
 
@@ -407,7 +368,7 @@ const updateHotel = asyncHandler(async (req, res) => {
 ========================================= */
 
 const deleteHotel = asyncHandler(async (req, res) => {
-  const hotel = await Hotel.findById(req.params.id);
+  const hotel = await Hotel.findOne(getHotelFilter(req.params.id));
 
   if (!hotel) {
     res.status(404);
@@ -459,11 +420,11 @@ const checkAvailability = asyncHandler(async (req, res) => {
     rooms = 1,
   } = req.query;
 
-  const room = await Room.findOne({
-    _id: roomId,
-    hotel: req.params.id,
-    isAvailable: true,
-  });
+  const hotelId = await resolveHotelId(req.params.id);
+
+  const room = hotelId
+    ? await Room.findOne({ _id: roomId, hotel: hotelId, isAvailable: true })
+    : null;
 
   if (!room) {
     res.status(404);
@@ -489,7 +450,7 @@ const checkAvailability = asyncHandler(async (req, res) => {
 ========================================= */
 
 const getOwnerContact = asyncHandler(async (req, res) => {
-  const hotel = await Hotel.findById(req.params.id)
+  const hotel = await Hotel.findOne(getHotelFilter(req.params.id))
     .select("name +ownerContact")
     .lean();
 
@@ -513,6 +474,7 @@ const getOwnerContact = asyncHandler(async (req, res) => {
 ========================================= */
 
 module.exports = {
+  resolveHotelId,
   getHotels,
   getHotelById,
   createHotel,

@@ -94,7 +94,7 @@ export const router = createBrowserRouter([
           { path: "destinations", element: page(Destinations) },
           { path: "destinations/:id", element: page(DestinationDetail) },
           { path: "hotels", element: page(Hotels) },
-          { path: "hotels/:id", element: page(HotelDetail) },
+          { path: "hotels/:slug", element: page(HotelDetail) },
           { path: "packages", element: page(Packages) },
           { path: "packages/:slug", element: page(PackageDetail) },
           { path: "plan-trip", element: page(PlanTrip) },

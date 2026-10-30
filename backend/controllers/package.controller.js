@@ -215,7 +215,7 @@ const getPackageById = asyncHandler(async (req, res) => {
     getPackageFilter(req.params.id)
   )
     .populate("destination", "name city state country")
-    .populate("hotels", "name images rating location hotelType")
+    .populate("hotels", "name slug images rating location hotelType")
     .lean();
 
   if (!pkg) {

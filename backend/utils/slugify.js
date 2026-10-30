@@ -17,6 +17,12 @@ const slugify = (value = "") =>
 /** True only for a real 24-char hex ObjectId (mongoose.isValidObjectId also accepts ANY 12-char string). */
 const isObjectIdString = (value) => OBJECT_ID_RE.test(String(value));
 
+/** Filter for routes that accept either a MongoDB id (old links) or a slug (SEO links). */
+const idOrSlugFilter = (identifier) => {
+  const value = String(identifier);
+  return isObjectIdString(value) ? { _id: value } : { slug: value.toLowerCase() };
+};
+
 /**
  * Returns a slug that no other document of `Model` uses.
  * "kerala-tour" -> "kerala-tour-2" -> "kerala-tour-3" ...
@@ -41,4 +47,4 @@ const generateUniqueSlug = async (Model, source, { excludeId, fallback = "item",
   return `${base}-${Date.now().toString(36)}`;
 };
 
-module.exports = { slugify, isObjectIdString, generateUniqueSlug, MAX_SLUG_LENGTH };
+module.exports = { slugify, isObjectIdString, idOrSlugFilter, generateUniqueSlug, MAX_SLUG_LENGTH };

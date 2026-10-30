@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card"
 import { Select } from "@/components/ui/select"
 import { Alert } from "@/components/ui/alert"
 import { PageLoader } from "@/components/ui/spinner"
+import { PageMeta } from "@/components/common/page-meta"
 import { StarRating } from "@/components/common/star-rating"
 import { WishlistButton } from "@/features/wishlist/components/wishlist-button"
 import { MapEmbed } from "@/components/common/map-embed"
@@ -14,12 +15,14 @@ import { ReviewSection } from "@/features/reviews/components/review-section"
 import { formatINR, nightsBetween } from "@/lib/utils"
 import { useAuth } from "@/features/auth/hooks/useAuth"
 import { hotelApi } from "@/features/hotels/api/hotel.api"
+import { hotelPath, isObjectId } from "@/features/hotels/lib/hotel-path"
 import { bookingApi } from "@/features/bookings/api/booking.api"
 import { ApiError } from "@/lib/axios"
 import type { Hotel, Room } from "@/features/hotels/types"
 
 export default function HotelDetailsPage() {
-  const { id = "" } = useParams<{ id: string }>()
+  // URL is /hotels/:slug (old links with the MongoDB id still work and are redirected to the slug)
+  const { slug = "" } = useParams<{ slug: string }>()
   const navigate = useNavigate()
   const { user } = useAuth()
 
@@ -39,15 +42,19 @@ export default function HotelDetailsPage() {
 
   useEffect(() => {
     hotelApi
-      .get(id)
+      .get(slug)
       .then(({ hotel, rooms }) => {
         setHotel(hotel)
         setRooms(rooms)
         if (rooms[0]) setRoomId(rooms[0]._id)
+        // Old id-based link -> show the SEO slug in the address bar
+        if (isObjectId(slug) && hotel.slug && hotel.slug !== slug) {
+          navigate(hotelPath(hotel), { replace: true })
+        }
       })
       .catch(() => setHotel(null))
       .finally(() => setLoading(false))
-  }, [id])
+  }, [slug, navigate])
 
   if (loading) return <PageLoader label="Loading hotel..." />
   if (!hotel) return (
@@ -99,6 +106,11 @@ export default function HotelDetailsPage() {
 
   return (
     <main className="min-h-screen pt-24 pb-20 bg-background">
+      <PageMeta
+        title={`${hotel.name} - ${hotel.location.city}${hotel.location.state ? `, ${hotel.location.state}` : ""} | Incredible India Travel`}
+        description={hotel.description.replace(/\s+/g, " ").trim().slice(0, 155)}
+        canonical={hotelPath(hotel)}
+      />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Gallery */}
         <div className="mb-8">

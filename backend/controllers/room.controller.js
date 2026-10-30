@@ -6,6 +6,7 @@ const { deleteImage } = require("../config/cloudinary");
 const { parseJsonField, pick } = require("../utils/parseJson");
 const { assertCanManageHotel } = require("../utils/ownership");
 const cache = require("../utils/cache");
+const { idOrSlugFilter } = require("../utils/slugify");
 
 const FIELDS = ["roomType", "price", "capacity", "totalRooms", "isAvailable"];
 const parseBody = (body) => {
@@ -15,14 +16,22 @@ const parseBody = (body) => {
 };
 
 // @route GET /api/hotels/:hotelId/rooms
+// :hotelId may be a MongoDB id or the hotel slug.
+const findHotel = (identifier) => Hotel.findOne(idOrSlugFilter(identifier));
+
 const getRoomsByHotel = asyncHandler(async (req, res) => {
-  const rooms = await Room.find({ hotel: req.params.hotelId }).lean();
+  const hotel = await findHotel(req.params.hotelId).select("_id").lean();
+  if (!hotel) {
+    res.status(404);
+    throw new Error("Hotel not found");
+  }
+  const rooms = await Room.find({ hotel: hotel._id }).lean();
   res.status(200).json({ success: true, count: rooms.length, rooms });
 });
 
 // @route POST /api/hotels/:hotelId/rooms   (admin or the hotel's manager)
 const createRoom = asyncHandler(async (req, res) => {
-  const hotel = await Hotel.findById(req.params.hotelId);
+  const hotel = await findHotel(req.params.hotelId);
   if (!hotel) {
     res.status(404);
     throw new Error("Hotel not found");
@@ -36,8 +45,13 @@ const createRoom = asyncHandler(async (req, res) => {
 
 // @route PUT /api/hotels/:hotelId/rooms/:roomId
 const updateRoom = asyncHandler(async (req, res) => {
-  await assertCanManageHotel(req.user, req.params.hotelId);
-  const room = await Room.findOne({ _id: req.params.roomId, hotel: req.params.hotelId });
+  const hotel = await findHotel(req.params.hotelId);
+  if (!hotel) {
+    res.status(404);
+    throw new Error("Hotel not found");
+  }
+  await assertCanManageHotel(req.user, hotel);
+  const room = await Room.findOne({ _id: req.params.roomId, hotel: hotel._id });
   if (!room) {
     res.status(404);
     throw new Error("Room not found");
@@ -51,8 +65,13 @@ const updateRoom = asyncHandler(async (req, res) => {
 
 // @route DELETE /api/hotels/:hotelId/rooms/:roomId - rooms with upcoming/active bookings can't be removed
 const deleteRoom = asyncHandler(async (req, res) => {
-  await assertCanManageHotel(req.user, req.params.hotelId);
-  const room = await Room.findOne({ _id: req.params.roomId, hotel: req.params.hotelId });
+  const hotel = await findHotel(req.params.hotelId);
+  if (!hotel) {
+    res.status(404);
+    throw new Error("Hotel not found");
+  }
+  await assertCanManageHotel(req.user, hotel);
+  const room = await Room.findOne({ _id: req.params.roomId, hotel: hotel._id });
   if (!room) {
     res.status(404);
     throw new Error("Room not found");

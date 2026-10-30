@@ -14,6 +14,7 @@ const HOTEL_TYPES = ["Budget", "Standard", "Luxury", "Resort", "Boutique", "Heri
 
 const fields: AdminField[] = [
   { name: "name", label: "Hotel Name", type: "text", required: true },
+  { name: "slug", label: "URL Slug (SEO)", type: "text", hint: "Optional. Leave blank to auto-generate from the name, e.g. taj-lake-palace-udaipur" },
   { name: "hotelType", label: "Hotel Type", type: "select", options: HOTEL_TYPES, required: true },
   { name: "description", label: "Description", type: "textarea", required: true, colSpan: 2 },
   { name: "address", label: "Address", type: "text", required: true },
@@ -50,12 +51,12 @@ export default function AdminHotelsPage() {
     fetchHotels()
   }, [])
 
-  const openCreate = () => { setOwnerContact({}); setOwnerLoaded(true); setEditing(null); setModalOpen(true) }
   // The owner contact is private, so it is not part of the public hotel list - fetch it for the edit form.
   // The form opens only AFTER it is loaded (it copies its values once, when it opens). If loading fails we do not
   // send the owner fields on save, so a saved contact can never be wiped by an empty form.
   const [ownerContact, setOwnerContact] = useState<{ name?: string; phone?: string; email?: string }>({})
   const [ownerLoaded, setOwnerLoaded] = useState(true)
+  const openCreate = () => { setOwnerContact({}); setOwnerLoaded(true); setEditing(null); setModalOpen(true) }
   const openEdit = async (hotel: Hotel) => {
     let contact: { name?: string; phone?: string; email?: string } = {}
     let loaded = true
@@ -74,6 +75,9 @@ export default function AdminHotelsPage() {
   const handleSubmit = async (values: Record<string, unknown>) => {
     const formData = new FormData()
     formData.append("name", String(values.name || ""))
+    // blank = backend generates it from the name (create) or keeps the current one (edit)
+    const slug = String(values.slug || "").trim()
+    if (slug) formData.append("slug", slug)
     formData.append("hotelType", String(values.hotelType || "Standard"))
     formData.append("description", String(values.description || ""))
     formData.append(
@@ -117,6 +121,7 @@ export default function AdminHotelsPage() {
 
   const columns: AdminColumn<Hotel>[] = [
     { key: "name", label: "Name" },
+    { key: "slug", label: "URL", render: (h) => <span className="text-xs text-muted-foreground">/hotels/{h.slug || "-"}</span> },
     { key: "city", label: "City", render: (h) => `${h.location.city}, ${h.location.state || ""}` },
     { key: "hotelType", label: "Type", render: (h) => <Badge variant="outline">{h.hotelType}</Badge> },
     { key: "rating", label: "Rating", render: (h) => `${h.rating.toFixed(1)} (${h.numReviews})` },
@@ -125,6 +130,7 @@ export default function AdminHotelsPage() {
   const initialValues = editing
     ? {
         name: editing.name,
+        slug: editing.slug || "",
         hotelType: editing.hotelType,
         description: editing.description,
         address: editing.location.address,

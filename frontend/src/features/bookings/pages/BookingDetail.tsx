@@ -299,7 +299,7 @@ export default function BookingDetailPage() {
                 <div>
                   <h3 className="text-lg font-semibold text-foreground">How was your trip?</h3>
                   <p className="mb-4 mt-1 text-sm text-muted-foreground">Your booking is complete, so you can now leave a verified review.</p>
-                  <Button className="w-full bg-amber-500 text-white hover:bg-amber-600 sm:w-auto" render={<Link to={`/${booking.bookingType}s/${booking.bookingType === "hotel" ? hotel?._id : pkg?._id}#reviews`} />}>
+                  <Button className="w-full bg-amber-500 text-white hover:bg-amber-600 sm:w-auto" render={<Link to={`/${booking.bookingType}s/${booking.bookingType === "hotel" ? hotel?.slug || hotel?._id : pkg?.slug || pkg?._id}#reviews`} />}>
                     Write a Review
                   </Button>
                 </div>
