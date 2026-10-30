@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { MapPin, ArrowRight } from "lucide-react"
 import { destinationApi } from "@/features/destinations/api/destination.api"
+import { destinationPath } from "@/features/destinations/lib/destination-path"
 import type { Destination } from "@/features/destinations/types"
 
 export function Destinations() {
@@ -68,7 +69,7 @@ export function Destinations() {
           ) : (
             destinations.slice(0, 5).map((destination, index) => (
               <Link
-                to={`/destinations/${destination._id}`}
+                to={destinationPath(destination)}
                 key={destination._id}
                 className={`group relative rounded-2xl overflow-hidden cursor-pointer ${
                   index === 0 ? "md:col-span-2 md:row-span-2" : ""

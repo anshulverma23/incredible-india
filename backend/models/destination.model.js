@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { generateUniqueSlug } = require("../utils/slugify");
 
 // Points of interest used by the Travel Itinerary Engine (services/itinerary.service.js).
 const attractionSchema = new mongoose.Schema(
@@ -17,6 +18,8 @@ const attractionSchema = new mongoose.Schema(
 const destinationSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
+    // SEO-friendly URL slug (e.g. "kashmir")
+    slug: { type: String, unique: true, sparse: true, trim: true, lowercase: true },
     country: { type: String, required: true, default: "India" },
     state: { type: String, required: true, index: true },
     city: { type: String, required: true },
@@ -44,6 +47,24 @@ const destinationSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+// Slug rules (same as packages / hotels):
+//  - create            -> built from the name (or from the slug the admin typed)
+//  - rename            -> slug is NOT changed, so Google/old links keep working
+//  - admin edits slug  -> cleaned (lowercase, hyphens) and kept unique
+//  - old destination without a slug -> gets one the next time it is saved
+destinationSchema.pre("validate", async function () {
+  const adminChangedSlug = this.isModified("slug") && Boolean(this.slug);
+  if (this.slug && !adminChangedSlug) return;
+
+  const source = adminChangedSlug ? this.slug : this.name;
+  if (!source) return;
+
+  this.slug = await generateUniqueSlug(this.constructor, source, {
+    excludeId: this._id,
+    fallback: `destination-${this._id.toString().slice(-6)}`,
+  });
+});
 
 destinationSchema.index({ name: "text", city: "text", state: "text", country: "text" });
 destinationSchema.index({ isActive: 1, createdAt: -1 });

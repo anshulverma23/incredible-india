@@ -9,6 +9,7 @@ import type { Destination } from "@/features/destinations/types"
 
 const fields: AdminField[] = [
   { name: "name", label: "Destination Name", type: "text", required: true },
+  { name: "slug", label: "URL Slug (SEO)", type: "text", hint: "Optional. Leave blank to auto-generate from the name, e.g. kashmir" },
   { name: "city", label: "City", type: "text", required: true },
   { name: "state", label: "State", type: "text", required: true },
   { name: "country", label: "Country", type: "text" },
@@ -44,6 +45,9 @@ export default function AdminDestinationsPage() {
     ;["name", "city", "state", "country", "description", "bestTimeToVisit"].forEach((k) => {
       if (values[k]) formData.append(k, String(values[k]))
     })
+    // blank = backend generates it from the name (create) or keeps the current one (edit)
+    const slug = String(values.slug || "").trim()
+    if (slug) formData.append("slug", slug)
     if (values.lat && values.lng) formData.append("coordinates", JSON.stringify({ lat: Number(values.lat), lng: Number(values.lng) }))
     formData.append("tags", JSON.stringify(String(values.tags || "").split(",").map((s) => s.trim()).filter(Boolean)))
     const files = values.gallery as FileList | null
@@ -72,6 +76,7 @@ export default function AdminDestinationsPage() {
 
   const columns: AdminColumn<Destination>[] = [
     { key: "name", label: "Name" },
+    { key: "slug", label: "URL", render: (d) => <span className="text-xs text-muted-foreground">/destinations/{d.slug || "-"}</span> },
     { key: "city", label: "City", render: (d) => `${d.city}, ${d.state}` },
     { key: "tags", label: "Tags", render: (d) => d.tags.join(", ") },
   ]
@@ -79,6 +84,7 @@ export default function AdminDestinationsPage() {
   const initialValues = editing
     ? {
         name: editing.name,
+        slug: editing.slug || "",
         city: editing.city,
         state: editing.state,
         country: editing.country,

@@ -1,12 +1,13 @@
 import { Link } from "react-router-dom"
 import { MapPin } from "lucide-react"
+import { destinationPath } from "@/features/destinations/lib/destination-path"
 import type { Destination } from "@/features/destinations/types"
 
 export function DestinationCard({ destination }: { destination: Destination }) {
   const image = destination.gallery?.[0]?.url
 
   return (
-    <Link to={`/destinations/${destination._id}`} className="group relative block aspect-[4/5] overflow-hidden rounded-2xl">
+    <Link to={destinationPath(destination)} className="group relative block aspect-[4/5] overflow-hidden rounded-2xl">
       {image ? (
         <img loading="lazy" decoding="async" src={image} alt={destination.name} className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" />
       ) : (

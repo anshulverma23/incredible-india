@@ -11,6 +11,7 @@
     "migrate:roles": "node scripts/migrate-roles.js",
     "migrate:slugs": "node scripts/backfill-package-slug.js",
     "migrate:hotel-slugs": "node scripts/generate-hotel-slug.js",
+    "migrate:destination-slugs": "node scripts/generate-destination-slug.js",
     "test": "jest --runInBand --forceExit",
     "test:watch": "jest --watch",
     "test:coverage": "jest --runInBand --forceExit --coverage"
@@ -70,5 +71,14 @@
       "validators/**/*.js",
       "!utils/seedData.js"
     ]
+  },
+  "overrides": {
+    "qs": "^6.17.1",
+    "gaxios": {
+      "uuid": "^11.1.1"
+    },
+    "jest-config": {
+      "deepmerge": "^4.3.1"
+    }
   }
 }

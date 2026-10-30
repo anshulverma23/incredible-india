@@ -9,8 +9,12 @@ const { safeRegex } = require("../utils/escapeRegex");
 const { parseJsonField, pick } = require("../utils/parseJson");
 const cache = require("../utils/cache");
 const { env } = require("../config/env");
+const { idOrSlugFilter } = require("../utils/slugify");
 
-const FIELDS = ["name", "country", "state", "city", "description", "bestTimeToVisit", "isActive"];
+const FIELDS = ["name", "slug", "country", "state", "city", "description", "bestTimeToVisit", "isActive"];
+// Resolve either a MongoDB ObjectId (old links) or a destination slug (new SEO links).
+const getDestinationFilter = idOrSlugFilter;
+
 const parseBody = (body) => {
   const data = pick(body, FIELDS);
   if (body.tags !== undefined) data.tags = parseJsonField(body.tags, "tags", []);
@@ -44,10 +48,10 @@ const getDestinations = asyncHandler(async (req, res) => {
 });
 
 // @desc    Get a single destination with nearby hotels + packages + live weather
-// @route   GET /api/destinations/:id
+// @route   GET /api/destinations/:id   (:id = MongoDB id or slug)
 // @access  Public
 const getDestinationById = asyncHandler(async (req, res) => {
-  const destination = await Destination.findById(req.params.id);
+  const destination = await Destination.findOne(getDestinationFilter(req.params.id));
   if (!destination) {
     res.status(404);
     throw new Error("Destination not found");
@@ -65,7 +69,7 @@ const getDestinationById = asyncHandler(async (req, res) => {
 // @route   GET /api/destinations/:id/weather
 // @access  Public
 const getDestinationWeather = asyncHandler(async (req, res) => {
-  const destination = await Destination.findById(req.params.id);
+  const destination = await Destination.findOne(getDestinationFilter(req.params.id));
   if (!destination) {
     res.status(404);
     throw new Error("Destination not found");
@@ -123,12 +127,15 @@ const createDestination = asyncHandler(async (req, res) => {
 // @route   PUT /api/destinations/:id
 // @access  Private/Admin
 const updateDestination = asyncHandler(async (req, res) => {
-  const destination = await Destination.findById(req.params.id);
+  const destination = await Destination.findOne(getDestinationFilter(req.params.id));
   if (!destination) {
     res.status(404);
     throw new Error("Destination not found");
   }
-  Object.assign(destination, parseBody(req.body));
+  const updates = parseBody(req.body);
+  // A blank slug means "keep the current one" (a rename never changes the URL).
+  if (!updates.slug) delete updates.slug;
+  Object.assign(destination, updates);
   if (req.files?.length) destination.gallery = [...destination.gallery, ...req.files.map((f) => ({ url: f.path, public_id: f.filename }))];
   await destination.save();
   cache.invalidate("destinations");
@@ -140,7 +147,7 @@ const updateDestination = asyncHandler(async (req, res) => {
 // @route   DELETE /api/destinations/:id
 // @access  Private/Admin
 const deleteDestination = asyncHandler(async (req, res) => {
-  const destination = await Destination.findById(req.params.id);
+  const destination = await Destination.findOne(getDestinationFilter(req.params.id));
   if (!destination) {
     res.status(404);
     throw new Error("Destination not found");

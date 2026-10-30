@@ -229,7 +229,7 @@ const getHotels = asyncHandler(async (req, res) => {
 
 const getHotelById = asyncHandler(async (req, res) => {
   const hotel = await Hotel.findOne(getHotelFilter(req.params.id))
-    .populate("destination", "name city state")
+    .populate("destination", "name slug city state")
     .lean();
 
   if (!hotel) {

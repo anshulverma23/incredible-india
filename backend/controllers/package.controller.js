@@ -189,7 +189,7 @@ const getPackages = asyncHandler(async (req, res) => {
 
   const [packages, total] = await Promise.all([
     Package.find(query)
-      .populate("destination", "name city state")
+      .populate("destination", "name slug city state")
       .sort(sort)
       .skip(pagination.skip)
       .limit(pagination.limit)
@@ -214,7 +214,7 @@ const getPackageById = asyncHandler(async (req, res) => {
   const pkg = await Package.findOne(
     getPackageFilter(req.params.id)
   )
-    .populate("destination", "name city state country")
+    .populate("destination", "name slug city state country")
     .populate("hotels", "name slug images rating location hotelType")
     .lean();
 

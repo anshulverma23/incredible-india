@@ -1,19 +1,23 @@
 import { useEffect, useState } from "react"
-import { Link, useParams } from "react-router-dom"
+import { Link, useNavigate, useParams } from "react-router-dom"
 import { MapPin, Star, Clock, Tag, ArrowRight, ChevronLeft, Loader2, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import { HotelCard } from "@/components/cards/hotel-card"
 import { PackageCard } from "@/components/cards/package-card"
+import { PageMeta } from "@/components/common/page-meta"
 import { WishlistButton } from "@/features/wishlist/components/wishlist-button"
 import { destinationApi } from "@/features/destinations/api/destination.api"
+import { destinationPath, isObjectId } from "@/features/destinations/lib/destination-path"
 import type { Destination } from "@/features/destinations/types"
 import type { Hotel } from "@/features/hotels/types"
 import type { TourPackage } from "@/features/packages/types"
 
 export default function DestinationPage() {
-  const { id = "" } = useParams<{ id: string }>()
+  // URL is /destinations/:slug (old links with the MongoDB id still work and are redirected to the slug)
+  const { slug = "" } = useParams<{ slug: string }>()
+  const navigate = useNavigate()
 
   const [destination, setDestination] = useState<Destination | null>(null)
   const [hotels, setHotels] = useState<Hotel[]>([])
@@ -23,22 +27,26 @@ export default function DestinationPage() {
   const [activeImage, setActiveImage] = useState(0)
 
   useEffect(() => {
-    if (!id) return
-    // The `id` route param can change without remounting this page (e.g.
+    if (!slug) return
+    // The `slug` route param can change without remounting this page (e.g.
     // navigating between two destinations' pages), so this loading flag has
     // to be reset from inside the effect itself.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true)
     destinationApi
-      .get(id)
+      .get(slug)
       .then(({ destination, hotels, packages }) => {
         setDestination(destination)
         setHotels(hotels || [])
         setPackages(packages || [])
+        // Old id-based link -> show the SEO slug in the address bar
+        if (isObjectId(slug) && destination.slug && destination.slug !== slug) {
+          navigate(destinationPath(destination), { replace: true })
+        }
       })
       .catch(() => setError(true))
       .finally(() => setLoading(false))
-  }, [id])
+  }, [slug, navigate])
 
   if (loading) {
     return (
@@ -71,6 +79,11 @@ export default function DestinationPage() {
 
   return (
     <main className="min-h-screen bg-background">
+      <PageMeta
+        title={`${destination.name}, ${destination.state} - Travel Guide, Hotels & Tour Packages | Incredible India Travel`}
+        description={destination.description.replace(/\s+/g, " ").trim().slice(0, 155)}
+        canonical={destinationPath(destination)}
+      />
       {/* Hero Section */}
       <section className="relative h-[60vh] md:h-[75vh] overflow-hidden">
         {heroImage ? (

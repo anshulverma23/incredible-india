@@ -92,7 +92,7 @@ export const router = createBrowserRouter([
           { path: "blog", element: page(Blog) },
           { path: "blog/:slug", element: page(BlogDetail) },
           { path: "destinations", element: page(Destinations) },
-          { path: "destinations/:id", element: page(DestinationDetail) },
+          { path: "destinations/:slug", element: page(DestinationDetail) },
           { path: "hotels", element: page(Hotels) },
           { path: "hotels/:slug", element: page(HotelDetail) },
           { path: "packages", element: page(Packages) },
