@@ -122,6 +122,11 @@ export default function CheckoutPage() {
   // An already-paid booking should not show the checkout form.
   if (booking.paymentStatus === "paid") return <Navigate to={`/payment-success/${booking._id}`} replace />
 
+  // Hotel requests can only be paid after the hotel confirmed the price AND the customer approved it.
+  if (booking.bookingStatus === "pending_confirmation" || booking.bookingStatus === "awaiting_approval") {
+    return <Navigate to={`/bookings/${booking._id}`} replace />
+  }
+
   if (booking.bookingStatus !== "pending" || holdExpired) {
     return (
       <main className="min-h-screen bg-muted/30 pb-20 pt-28">

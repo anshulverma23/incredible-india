@@ -13,4 +13,11 @@ const LIMITS = {
   maxAdvanceBookingDays: 540,
 };
 
-module.exports = { CANCELLATION_TIERS, LIMITS };
+// Hotel "request booking" flow (hotel owner is contacted by the admin before any payment).
+const HOTEL_REQUEST = {
+  requestExpiryHours: 72, // admin has this long to answer a new request
+  defaultQuoteValidityHours: 24, // how long the final price stays valid for the customer
+  maxQuoteValidityHours: 72,
+};
+
+module.exports = { CANCELLATION_TIERS, LIMITS, HOTEL_REQUEST };

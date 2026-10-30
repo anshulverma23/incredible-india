@@ -5,9 +5,14 @@ info:
   description: |
     REST API for the India Travel booking platform.
 
-    **Booking flow:** search -> select package/hotel -> `POST /bookings` (pending, inventory held for 30 min) ->
+    **Package booking flow:** search -> select package -> `POST /bookings` (pending, inventory held for 30 min) ->
     `POST /payment/create-order` -> Razorpay Checkout -> `POST /payment/verify` (+ webhook) -> booking `confirmed`,
     invoice PDF + emails + notifications.
+
+    **Hotel booking flow (request based):** `POST /bookings` (hotel) -> `pending_confirmation` (nothing is held or charged) ->
+    admin contacts the hotel (`POST /bookings/{id}/notes`) -> `PUT /bookings/{id}/quote` (final price, rooms reserved) ->
+    `awaiting_approval` -> customer `PUT /bookings/{id}/approve` -> `pending` (30 min payment hold) -> payment as above ->
+    `confirmed`. The admin can `PUT /bookings/{id}/decline` (`declined`). Unanswered requests/offers become `expired`.
 
     **Auth:** send `Authorization: Bearer <accessToken>`. Access tokens last 15 minutes; `POST /auth/refresh`
     (httpOnly cookie) rotates them. Roles: `user`, `admin` (only two).
@@ -47,7 +52,7 @@ components:
         _id: { type: string }
         bookingReference: { type: string, example: IT-260607-K7M2QX }
         bookingType: { type: string, enum: [hotel, package] }
-        bookingStatus: { type: string, enum: [pending, confirmed, cancelled, failed, refunded, completed, expired] }
+        bookingStatus: { type: string, enum: [pending_confirmation, awaiting_approval, pending, confirmed, cancelled, failed, refunded, completed, expired, declined] }
         paymentStatus: { type: string, enum: [pending, paid, failed, refunded, partially_refunded] }
         expiresAt: { type: string, format: date-time }
         pricing: { $ref: "#/components/schemas/Pricing" }
@@ -203,6 +208,14 @@ paths:
     put: { tags: [Bookings], summary: Cancel (refund per policy - 90% / 50% / 0%), parameters: [{ name: id, in: path, required: true, schema: { type: string } }], responses: { "200": { description: Cancelled + refund details } } }
   /bookings/{id}/invoice:
     get: { tags: [Bookings], summary: Download invoice PDF (paid bookings), parameters: [{ name: id, in: path, required: true, schema: { type: string } }], responses: { "200": { description: PDF, content: { application/pdf: {} } } } }
+  /bookings/{id}/approve:
+    put: { tags: [Bookings], summary: Customer accepts the final price of a hotel request (-> pending, awaiting payment), parameters: [{ name: id, in: path, required: true, schema: { type: string } }], responses: { "200": { description: Booking now awaiting payment }, "409": { description: Price offer expired }, "400": { description: No price waiting for approval } } }
+  /bookings/{id}/quote:
+    put: { tags: [Bookings], summary: "Admin: send the final price agreed with the hotel (reserves the rooms until it expires)", parameters: [{ name: id, in: path, required: true, schema: { type: string } }], requestBody: { required: true, content: { application/json: { schema: { type: object, required: [finalPrice], properties: { finalPrice: { type: integer, description: Whole rupees before tax }, validHours: { type: integer, maximum: 72 }, note: { type: string } } } } } }, responses: { "200": { description: awaiting_approval }, "409": { description: Rooms held by another booking } } }
+  /bookings/{id}/decline:
+    put: { tags: [Bookings], summary: "Admin: the hotel cannot host this stay", parameters: [{ name: id, in: path, required: true, schema: { type: string } }], requestBody: { required: true, content: { application/json: { schema: { type: object, required: [reason], properties: { reason: { type: string } } } } } }, responses: { "200": { description: declined } } }
+  /bookings/{id}/notes:
+    post: { tags: [Bookings], summary: "Admin: private note about the hotel contact (never shown to customers)", parameters: [{ name: id, in: path, required: true, schema: { type: string } }], requestBody: { required: true, content: { application/json: { schema: { type: object, required: [note], properties: { note: { type: string } } } } } }, responses: { "201": { description: All notes } } }
   /bookings/{id}/apply-coupon:
     put: { tags: [Bookings], summary: Apply/remove a coupon on a pending booking, parameters: [{ name: id, in: path, required: true, schema: { type: string } }], responses: { "200": { description: Re-priced booking } } }
   /payment/create-order:

@@ -1,6 +1,6 @@
 import { api, type QueryParams } from "@/lib/axios";
 import type { PaginatedResponse } from "@/types";
-import type { Hotel, Room } from "@/features/hotels/types";
+import type { Hotel, OwnerContact, Room } from "@/features/hotels/types";
 
 export const hotelApi = {
   list: (params: QueryParams = {}) =>
@@ -12,6 +12,8 @@ export const hotelApi = {
       `/hotels/${hotelId}/availability`,
       params,
     ),
+  /** Admin only: private contact of the hotel owner (used to confirm booking requests). */
+  ownerContact: (id: string) => api.get<{ ownerContact: OwnerContact }>(`/hotels/${id}/owner-contact`),
   create: (formData: FormData) => api.post("/hotels", formData),
   update: (id: string, formData: FormData) =>
     api.put(`/hotels/${id}`, formData),

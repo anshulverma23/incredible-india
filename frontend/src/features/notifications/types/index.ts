@@ -6,6 +6,9 @@ export type NotificationType =
   | "refund_processed"
   | "trip_reminder"
   | "booking_expired"
+  | "booking_request"
+  | "booking_quote"
+  | "booking_declined"
   | "review_prompt"
   | "general"
 

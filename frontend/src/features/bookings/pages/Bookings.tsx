@@ -7,7 +7,7 @@ import { Select } from "@/components/ui/select"
 import { PageLoader } from "@/components/ui/spinner"
 import { formatDate, formatINR } from "@/lib/utils"
 import { bookingApi } from "@/features/bookings/api/booking.api"
-import { BOOKING_STATUS_LABEL, BOOKING_STATUS_STYLES, PAYMENT_STATUS_LABEL, isPayable } from "@/features/bookings/lib/status"
+import { BOOKING_STATUS_LABEL, BOOKING_STATUS_STYLES, PAYMENT_STATUS_LABEL, canApprovePrice, isPayable } from "@/features/bookings/lib/status"
 import type { Booking } from "@/features/bookings/types"
 
 export default function BookingsPage() {
@@ -34,12 +34,15 @@ export default function BookingsPage() {
           <div className="w-48">
             <Select value={filter} onChange={(e) => { setLoading(true); setFilter(e.target.value) }}>
               <option value="">All statuses</option>
+              <option value="pending_confirmation">Pending confirmation</option>
+              <option value="awaiting_approval">Price ready - approve</option>
               <option value="pending">Awaiting payment</option>
               <option value="confirmed">Confirmed</option>
               <option value="completed">Completed</option>
               <option value="cancelled">Cancelled</option>
               <option value="refunded">Refunded</option>
               <option value="expired">Expired</option>
+              <option value="declined">Not available</option>
               <option value="failed">Failed</option>
             </Select>
           </div>
@@ -69,9 +72,18 @@ export default function BookingsPage() {
                     </p>
                   </Link>
                   <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                    <span className="text-sm font-semibold text-foreground">{formatINR(b.pricing.totalAmount)}</span>
+                    <span className="text-sm font-semibold text-foreground">
+                      {b.bookingStatus === "pending_confirmation" ? `Est. ${formatINR(b.estimatedBasePrice ?? b.pricing.basePrice)}` : formatINR(b.pricing.totalAmount)}
+                    </span>
                     <Badge className={BOOKING_STATUS_STYLES[b.bookingStatus]}>{BOOKING_STATUS_LABEL[b.bookingStatus]}</Badge>
-                    <Badge variant="outline">{PAYMENT_STATUS_LABEL[b.paymentStatus]}</Badge>
+                    {b.bookingStatus !== "pending_confirmation" && b.bookingStatus !== "awaiting_approval" && b.bookingStatus !== "declined" && (
+                      <Badge variant="outline">{PAYMENT_STATUS_LABEL[b.paymentStatus]}</Badge>
+                    )}
+                    {canApprovePrice(b) && (
+                      <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90" render={<Link to={`/bookings/${b._id}`} />}>
+                        Review price
+                      </Button>
+                    )}
                     {isPayable(b) && (
                       <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90" render={<Link to={`/checkout/${b._id}`} />}>
                         Pay now

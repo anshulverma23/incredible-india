@@ -53,6 +53,6 @@ describe("booking reference + model", () => {
   });
   test("pending bookings only hold inventory until they expire", () => {
     const f = Booking.activeHoldFilter(new Date("2026-01-01"));
-    expect(f.$or).toEqual(expect.arrayContaining([{ bookingStatus: "pending", expiresAt: { $gt: new Date("2026-01-01") } }]));
+    expect(f.$or).toEqual(expect.arrayContaining([{ bookingStatus: { $in: ["pending", "awaiting_approval"] }, expiresAt: { $gt: new Date("2026-01-01") } }]));
   });
 });

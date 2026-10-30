@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
-import { CheckCheck, Ban } from "lucide-react"
+import { CheckCheck, Ban, ClipboardList } from "lucide-react"
 import { AdminTable, type AdminColumn } from "@/features/admin/components/data-table"
+import { HotelRequestModal } from "@/features/admin/components/hotel-request-modal"
 import { Select } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -15,7 +16,7 @@ import type { User } from "@/features/auth/types"
 import type { Hotel } from "@/features/hotels/types"
 import type { TourPackage } from "@/features/packages/types"
 
-const STATUSES: BookingStatus[] = ["pending", "confirmed", "completed", "cancelled", "refunded", "failed", "expired"]
+const STATUSES: BookingStatus[] = ["pending_confirmation", "awaiting_approval", "pending", "confirmed", "completed", "cancelled", "declined", "refunded", "failed", "expired"]
 
 export default function AdminBookingsPage() {
   const { toast } = useToast()
@@ -23,6 +24,7 @@ export default function AdminBookingsPage() {
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState("")
   const [search, setSearch] = useState("")
+  const [requestId, setRequestId] = useState<string | null>(null)
 
   const fetchBookings = () =>
     bookingApi
@@ -115,7 +117,11 @@ export default function AdminBookingsPage() {
   },
 },
     { key: "createdAt", label: "Booked", render: (b) => (b.createdAt ? formatDate(b.createdAt) : "—") },
-    { key: "amount", label: "Amount", render: (b) => formatINR(b.pricing?.totalAmount || 0) },
+    {
+      key: "amount",
+      label: "Amount",
+      render: (b) => (b.bookingStatus === "pending_confirmation" ? <span className="text-muted-foreground">Est. {formatINR(b.estimatedBasePrice ?? b.pricing?.basePrice ?? 0)}</span> : formatINR(b.pricing?.totalAmount || 0)),
+    },
     { key: "paymentStatus", label: "Payment", render: (b) => <Badge variant="outline">{PAYMENT_STATUS_LABEL[b.paymentStatus] || b.paymentStatus}</Badge> },
     { key: "bookingStatus", label: "Status", render: (b) => <Badge className={BOOKING_STATUS_STYLES[b.bookingStatus]}>{BOOKING_STATUS_LABEL[b.bookingStatus]}</Badge> },
   ]
@@ -141,18 +147,38 @@ export default function AdminBookingsPage() {
         loading={loading}
         extraAction={(b) => (
           <>
+            {b.bookingType === "hotel" && (
+              <Button
+                variant={b.bookingStatus === "pending_confirmation" ? "default" : "ghost"}
+                size={b.bookingStatus === "pending_confirmation" ? "sm" : "icon-sm"}
+                onClick={() => setRequestId(b._id)}
+                aria-label="Manage hotel request"
+                title="Contact hotel, send final price or decline"
+                className={b.bookingStatus === "pending_confirmation" ? "bg-primary text-primary-foreground hover:bg-primary/90" : undefined}
+              >
+                <ClipboardList className="size-3.5" />
+                {b.bookingStatus === "pending_confirmation" && <span className="ml-1">Handle</span>}
+              </Button>
+            )}
             {b.bookingStatus === "confirmed" && (
               <Button variant="ghost" size="icon-sm" onClick={() => markCompleted(b)} aria-label="Mark completed" title="Mark trip as completed (unlocks reviews)">
                 <CheckCheck className="size-3.5" />
               </Button>
             )}
-            {(b.bookingStatus === "pending" || b.bookingStatus === "confirmed") && (
+            {(b.bookingStatus === "pending_confirmation" || b.bookingStatus === "awaiting_approval" || b.bookingStatus === "pending" || b.bookingStatus === "confirmed") && (
               <Button variant="ghost" size="icon-sm" onClick={() => cancel(b)} aria-label="Cancel booking" title="Cancel & refund" className="text-destructive">
                 <Ban className="size-3.5" />
               </Button>
             )}
           </>
         )}
+      />
+
+      <HotelRequestModal
+        bookingId={requestId}
+        open={requestId !== null}
+        onOpenChange={(o) => !o && setRequestId(null)}
+        onChanged={reload}
       />
     </div>
   )

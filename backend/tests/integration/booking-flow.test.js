@@ -41,7 +41,7 @@ const day = (n) => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
 const sign = (o, p) => crypto.createHmac("sha256", process.env.RAZORPAY_KEY_SECRET).update(`${o}|${p}`).digest("hex");
 
 d("booking -> payment -> confirmation (real database)", () => {
-  let alice, bob, aliceH, bobH, dest, pkg, hotel, room;
+  let alice, bob, admin, aliceH, bobH, adminH, dest, pkg, hotel, room;
 
   jest.setTimeout(60_000);
   const ALL = [Booking, Payment, Notification, Review, CouponUsage, Coupon, Package, Room, Hotel, Destination, Wishlist, User];
@@ -63,6 +63,8 @@ d("booking -> payment -> confirmation (real database)", () => {
     await Promise.all([Booking, Payment, Notification, Review, CouponUsage, Coupon, Package, Room, Hotel, Destination, Wishlist].map((m) => m.deleteMany({})));
     alice = alice || (await User.create({ name: "Alice", email: "alice@test.dev", password: "Passw0rd1" }));
     bob = bob || (await User.create({ name: "Bob", email: "bob@test.dev", password: "Passw0rd1" }));
+    admin = admin || (await User.create({ name: "Admin", email: "admin@test.dev", password: "Passw0rd1", role: "admin" }));
+    adminH = { Authorization: `Bearer ${signAccessToken(admin)}` };
     aliceH = { Authorization: `Bearer ${signAccessToken(alice)}` };
     bobH = { Authorization: `Bearer ${signAccessToken(bob)}` };
 
@@ -77,6 +79,17 @@ d("booking -> payment -> confirmation (real database)", () => {
   const bookPackage = (headers, extra = {}, key) =>
     request(app).post("/api/bookings").set(headers).set(key ? { "Idempotency-Key": key } : {}).send({ bookingType: "package", packageId: String(pkg._id), travelDate: day(20), guests: { adults: 2 }, ...extra });
   const bookRoom = (headers, ci = 10, co = 12) => request(app).post("/api/bookings").set(headers).send({ bookingType: "hotel", roomId: String(room._id), checkIn: day(ci), checkOut: day(co), guests: { adults: 2 } });
+
+  // Hotels are a REQUEST: admin sends the final price (this also reserves the rooms), then the customer approves it.
+  const quote = (id, finalPrice = 9000, extra = {}) => request(app).put(`/api/bookings/${id}/quote`).set(adminH).send({ finalPrice, ...extra });
+  const approve = (headers, id) => request(app).put(`/api/bookings/${id}/approve`).set(headers);
+  const bookRoomApproved = async (headers, ci = 10, co = 12) => {
+    const b = (await bookRoom(headers, ci, co)).body.booking;
+    expect((await quote(b._id)).status).toBe(200);
+    const a = await approve(headers, b._id);
+    expect(a.status).toBe(200);
+    return a.body.booking;
+  };
 
   const pay = async (headers, bookingId) => {
     const o = await request(app).post("/api/payment/create-order").set(headers).send({ bookingId });
@@ -139,19 +152,25 @@ d("booking -> payment -> confirmation (real database)", () => {
     expect(res.body.message).toMatch(/1 seat/);
     expect((await bookPackage(bobH, { guests: { adults: 1 } })).status).toBe(201);
   });
-  test("hotel: the only room can't be double-booked, but adjacent dates work", async () => {
-    expect((await bookRoom(aliceH, 10, 12)).status).toBe(201);
-    expect((await bookRoom(bobH, 11, 13)).status).toBe(409);
+  test("hotel: a plain request holds nothing; once quoted the only room can't be double-booked, adjacent dates work", async () => {
+    const a = (await bookRoom(aliceH, 10, 12)).body.booking;
+    expect((await bookRoom(bobH, 11, 13)).status).toBe(201); // alice's request has not been confirmed with the hotel yet
+    expect((await quote(a._id)).status).toBe(200); // now the rooms are reserved for alice
+    expect((await bookRoom(bobH, 10, 12)).status).toBe(409); // the only room is reserved for alice's quote
     expect((await bookRoom(bobH, 12, 14)).status).toBe(201); // alice checks out the morning bob checks in
   });
-  test("RACE: two simultaneous requests for the last room -> exactly one wins", async () => {
+  test("two customers can both ASK for the last room; the admin can only quote one of them", async () => {
     const results = await Promise.all([bookRoom(aliceH, 30, 32), bookRoom(bobH, 30, 32)]);
-    expect(results.map((r) => r.status).sort()).toEqual([201, 409]);
-    expect(await Booking.countDocuments({ bookingStatus: "pending" })).toBe(1);
+    expect(results.map((r) => r.status)).toEqual([201, 201]);
+    const [a, b] = results.map((r) => r.body.booking);
+    expect((await quote(a._id)).status).toBe(200);
+    expect((await quote(b._id)).status).toBe(409);
+    expect(await Booking.countDocuments({ bookingStatus: "awaiting_approval" })).toBe(1);
   });
-  test("an expired unpaid hold no longer blocks the room (even before the cron runs)", async () => {
-    const a = await bookRoom(aliceH, 10, 12);
-    await Booking.updateOne({ _id: a.body.booking._id }, { expiresAt: new Date(Date.now() - 1000) });
+  test("an expired price offer no longer blocks the room (even before the cron runs)", async () => {
+    const a = (await bookRoom(aliceH, 10, 12)).body.booking;
+    await quote(a._id);
+    await Booking.updateOne({ _id: a._id }, { expiresAt: new Date(Date.now() - 1000) });
     expect((await bookRoom(bobH, 10, 12)).status).toBe(201);
   });
 
@@ -170,8 +189,8 @@ d("booking -> payment -> confirmation (real database)", () => {
     const again = await bookPackage(aliceH, { couponCode: "WELCOME10", guests: { adults: 1 }, travelDate: day(20) });
     expect(again.status).toBe(409); // already has a confirmed booking for the date
     const hotelTry = await request(app).post("/api/bookings").set(aliceH).send({ bookingType: "hotel", roomId: String(room._id), checkIn: day(40), checkOut: day(42), guests: { adults: 2 }, couponCode: "WELCOME10" });
-    expect(hotelTry.status).toBe(400);
-    expect(hotelTry.body.message).toMatch(/already used/);
+    expect(hotelTry.status).toBe(201); // hotel requests ignore coupons (price is not final yet)
+    expect(hotelTry.body.booking.pricing.discount).toBe(0);
   });
 
   /* ---------------- payment ---------------- */
@@ -331,9 +350,85 @@ d("booking -> payment -> confirmation (real database)", () => {
     await expect(paymentService.refundPayment(payment, 99999)).rejects.toThrow(/refundable/);
   });
 
+  /* ---------------- hotel request flow ---------------- */
+  test("hotel request flow: request -> admin quote -> customer approves -> pay -> confirmed", async () => {
+    const res = await bookRoom(aliceH, 10, 12);
+    expect(res.status).toBe(201);
+    const b = res.body.booking;
+    expect(b.bookingStatus).toBe("pending_confirmation");
+    expect(b.pricing.basePrice).toBe(8000); // estimate: 4000 x 2 nights
+
+    // nothing can be paid before the hotel confirms and the customer approves
+    expect((await request(app).post("/api/payment/create-order").set(aliceH).send({ bookingId: b._id })).status).toBe(409);
+    expect((await approve(aliceH, b._id)).status).toBe(400); // no price to approve yet
+
+    // admin calls the hotel (private note), then sends the final price
+    expect((await request(app).post(`/api/bookings/${b._id}/notes`).set(adminH).send({ note: "Owner confirmed 1 room, Rs 9000" })).status).toBe(201);
+    const q = await quote(b._id, 9000, { note: "Breakfast included", validHours: 12 });
+    expect(q.status).toBe(200);
+    expect(q.body.booking).toMatchObject({ bookingStatus: "awaiting_approval", pricing: { basePrice: 9000, tax: 450, totalAmount: 9450 } });
+    expect((await request(app).post("/api/payment/create-order").set(aliceH).send({ bookingId: b._id })).status).toBe(409); // still needs approval
+
+    // other users cannot approve it; the customer can
+    expect((await approve(bobH, b._id)).status).toBe(404);
+    const ok = await approve(aliceH, b._id);
+    expect(ok.status).toBe(200);
+    expect(ok.body.booking.bookingStatus).toBe("pending");
+    expect((await approve(aliceH, b._id)).status).toBe(200); // double click is harmless
+
+    const p = await pay(aliceH, b._id);
+    expect(p.order.amount).toBe(9450 * 100);
+    expect((await p.verify()).status).toBe(200);
+    const done = await Booking.findById(b._id);
+    expect(done.bookingStatus).toBe("confirmed");
+    expect(done.paymentStatus).toBe("paid");
+    expect(done.statusHistory.map((h) => h.status)).toEqual(["pending_confirmation", "awaiting_approval", "pending", "confirmed"]);
+  });
+
+  test("hotel request: admin notes and owner contact stay private", async () => {
+    await Hotel.updateOne({ _id: hotel._id }, { ownerContact: { name: "Mr. Khan", phone: "+91 99999 00000", email: "owner@dalview.in" } });
+    const b = (await bookRoom(aliceH, 10, 12)).body.booking;
+    await request(app).post(`/api/bookings/${b._id}/notes`).set(adminH).send({ note: "internal only" });
+
+    const asUser = await request(app).get(`/api/bookings/${b._id}`).set(aliceH);
+    expect(asUser.status).toBe(200);
+    expect(JSON.stringify(asUser.body)).not.toMatch(/internal only|Khan|99999/);
+
+    const asAdmin = await request(app).get(`/api/bookings/${b._id}`).set(adminH);
+    expect(asAdmin.body.booking.adminNotes[0].note).toBe("internal only");
+    expect(asAdmin.body.booking.hotel.ownerContact.phone).toBe("+91 99999 00000");
+
+    expect(JSON.stringify((await request(app).get(`/api/hotels/${hotel._id}`)).body)).not.toMatch(/Khan|99999/); // public API
+  });
+
+  test("hotel request: admin can decline; customer can turn the price down", async () => {
+    const a = (await bookRoom(aliceH, 10, 12)).body.booking;
+    const d = await request(app).put(`/api/bookings/${a._id}/decline`).set(adminH).send({ reason: "Fully booked" });
+    expect(d.status).toBe(200);
+    expect(d.body.booking).toMatchObject({ bookingStatus: "declined", declineReason: "Fully booked" });
+    expect((await quote(a._id)).status).toBe(400); // closed
+
+    const b = (await bookRoom(bobH, 20, 22)).body.booking;
+    await quote(b._id);
+    const c = await request(app).put(`/api/bookings/${b._id}/cancel`).set(bobH).send({ reason: "Too expensive" });
+    expect(c.status).toBe(200);
+    expect((await Booking.findById(b._id)).bookingStatus).toBe("cancelled");
+  });
+
+  test("hotel request: unanswered requests and un-approved offers expire", async () => {
+    const a = (await bookRoom(aliceH, 10, 12)).body.booking;
+    const b = (await bookRoom(bobH, 20, 22)).body.booking;
+    await quote(b._id);
+    await Booking.updateMany({ _id: { $in: [a._id, b._id] } }, { expiresAt: new Date(Date.now() - 1000) });
+    expect(await bookingService.expireStaleBookings()).toBe(2);
+    expect((await Booking.findById(a._id)).bookingStatus).toBe("expired");
+    expect((await Booking.findById(b._id)).bookingStatus).toBe("expired");
+    expect((await approve(bobH, b._id)).status).toBe(400);
+  });
+
   /* ---------------- completion, reviews ---------------- */
   test("reviews: only guests with a COMPLETED booking, one review per booking, rating recalculated", async () => {
-    const b = (await bookRoom(aliceH, 5, 6)).body.booking;
+    const b = await bookRoomApproved(aliceH, 5, 6);
     const rev = (headers, body) => request(app).post("/api/reviews").set(headers).send(body);
 
     expect((await request(app).get(`/api/reviews/eligibility?targetType=hotel&targetId=${hotel._id}`).set(aliceH)).body.canReview).toBe(false);

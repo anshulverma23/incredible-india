@@ -2,7 +2,22 @@ import type { User } from "@/features/auth/types"
 import type { Hotel, Room } from "@/features/hotels/types"
 import type { TourPackage } from "@/features/packages/types"
 
-export type BookingStatus = "pending" | "confirmed" | "cancelled" | "failed" | "refunded" | "completed" | "expired"
+/**
+ * Hotels:   pending_confirmation -> awaiting_approval -> pending (awaiting payment) -> confirmed -> completed
+ *           (or declined when the hotel cannot host the stay)
+ * Packages: pending (awaiting payment) -> confirmed -> completed
+ */
+export type BookingStatus =
+  | "pending_confirmation"
+  | "awaiting_approval"
+  | "pending"
+  | "confirmed"
+  | "cancelled"
+  | "failed"
+  | "refunded"
+  | "completed"
+  | "expired"
+  | "declined"
 export type PaymentStatus = "pending" | "paid" | "failed" | "refunded" | "partially_refunded"
 
 export interface Booking {
@@ -23,8 +38,16 @@ export interface Booking {
   pricing: { basePrice: number; discount: number; tax: number; totalAmount: number }
   paymentStatus: PaymentStatus
   bookingStatus: BookingStatus
-  /** Unpaid bookings hold their seats/rooms only until this moment. */
+  /** Unpaid bookings hold their seats/rooms only until this moment (for a price offer: when the offer lapses). */
   expiresAt?: string
+  /** Hotel requests: system estimate (before tax). `pricing` is only final once the status is awaiting_approval or later. */
+  estimatedBasePrice?: number
+  /** Hotel requests: the final price sent by the admin. */
+  quote?: { amount: number; note?: string; sentAt?: string; validUntil?: string }
+  approvedAt?: string
+  declineReason?: string
+  /** ADMIN ONLY - never sent to customers. */
+  adminNotes?: { note: string; at: string; by?: string | { name: string } }[]
   statusHistory?: { status: BookingStatus; at: string; note?: string }[]
   cancellation?: { cancelledAt?: string; reason?: string; refundPercent?: number; refundAmount?: number }
   invoiceNumber: string

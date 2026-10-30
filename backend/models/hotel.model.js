@@ -26,6 +26,12 @@ const hotelSchema = new mongoose.Schema(
     numReviews: { type: Number, default: 0 },
     isActive: { type: Boolean, default: true },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    // PRIVATE: the admin calls this person to confirm price/availability for booking requests.
+    // select:false = never returned by public hotel/booking APIs; admin endpoints ask for it with .select("+ownerContact").
+    ownerContact: {
+      type: new mongoose.Schema({ name: String, phone: String, email: String }, { _id: false }),
+      select: false,
+    },
     // HOTEL_MANAGER users who may edit this hotel + its rooms and see its bookings
   },
   { timestamps: true }

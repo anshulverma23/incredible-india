@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { isPayable } from "@/features/bookings/lib/status"
+import { canApprovePrice, isPayable, isRequestStage } from "@/features/bookings/lib/status"
 import { formatCountdown } from "@/features/payments/hooks/useCountdown"
 import { timeAgo } from "@/features/notifications/lib/time-ago"
 
@@ -31,5 +31,24 @@ describe("formatters", () => {
     expect(timeAgo(new Date(Date.now() - 5 * 60_000))).toBe("5m ago")
     expect(timeAgo(new Date(Date.now() - 3 * 3_600_000))).toBe("3h ago")
     expect(timeAgo(new Date(Date.now() - 2 * 86_400_000))).toBe("2d ago")
+  })
+})
+
+describe("hotel request statuses", () => {
+  it("a request is never payable until the customer approved the price", () => {
+    expect(isPayable({ bookingStatus: "pending_confirmation", paymentStatus: "pending", expiresAt: future() })).toBe(false)
+    expect(isPayable({ bookingStatus: "awaiting_approval", paymentStatus: "pending", expiresAt: future() })).toBe(false)
+    expect(isPayable({ bookingStatus: "pending", paymentStatus: "pending", expiresAt: future() })).toBe(true) // after approval
+  })
+  it("the price can be approved only while the offer is still valid", () => {
+    expect(canApprovePrice({ bookingStatus: "awaiting_approval", expiresAt: future() })).toBe(true)
+    expect(canApprovePrice({ bookingStatus: "awaiting_approval", expiresAt: past() })).toBe(false)
+    expect(canApprovePrice({ bookingStatus: "pending_confirmation", expiresAt: future() })).toBe(false)
+  })
+  it("knows which statuses are still a request", () => {
+    expect(isRequestStage({ bookingStatus: "pending_confirmation" })).toBe(true)
+    expect(isRequestStage({ bookingStatus: "awaiting_approval" })).toBe(true)
+    expect(isRequestStage({ bookingStatus: "declined" })).toBe(false)
+    expect(isRequestStage({ bookingStatus: "confirmed" })).toBe(false)
   })
 })

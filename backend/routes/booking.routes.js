@@ -19,4 +19,10 @@ router.put("/:id/cancel", validate(v.cancel), c.cancelBooking);
 router.put("/:id/apply-coupon", validate(v.applyCoupon), c.applyCoupon);
 router.put("/:id/status", admin, validate(v.adminStatus), c.updateBookingStatus);
 
+// Hotel request flow
+router.put("/:id/approve", c.approveQuote); // customer
+router.put("/:id/quote", admin, validate(v.sendQuote), c.sendQuote);
+router.put("/:id/decline", admin, validate(v.declineRequest), c.declineRequest);
+router.post("/:id/notes", admin, validate(v.adminNote), c.addAdminNote);
+
 module.exports = router;

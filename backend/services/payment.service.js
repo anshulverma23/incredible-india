@@ -24,6 +24,8 @@ const createOrder = async (bookingId, user) => {
   if (!booking) throw httpError(404, "Booking not found");
   if (String(booking.user) !== String(user._id)) throw httpError(403, "Not authorized for this booking");
   if (booking.paymentStatus === "paid") throw httpError(400, "Booking is already paid for");
+  if (booking.bookingStatus === "pending_confirmation") throw httpError(409, "This hotel request is still waiting for the hotel's confirmation. You can pay once the final price is sent and you approve it.");
+  if (booking.bookingStatus === "awaiting_approval") throw httpError(409, "Please approve the final price on your booking page before paying.");
   if (booking.bookingStatus !== "pending") throw httpError(409, `This booking is ${booking.bookingStatus} and can no longer be paid`);
   if (booking.expiresAt && booking.expiresAt < new Date()) throw httpError(409, "This booking has expired. Please create a new booking.");
 
@@ -55,7 +57,8 @@ const createOrder = async (bookingId, user) => {
 
   // Give the customer time to finish paying, but cap the total hold at 2x the normal window.
   const now = Date.now();
-  const cap = booking.createdAt.getTime() + 2 * env.BOOKING_HOLD_MINUTES * 60_000;
+  // Hotel requests start the payment window when the customer approves the price (not when they first asked).
+  const cap = (booking.approvedAt || booking.createdAt).getTime() + 2 * env.BOOKING_HOLD_MINUTES * 60_000;
   booking.expiresAt = new Date(Math.min(cap, Math.max(booking.expiresAt?.getTime() || 0, now + 15 * 60_000)));
   booking.payment = payment._id;
   booking.paymentStatus = "pending";

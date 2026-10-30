@@ -1,6 +1,9 @@
 import type { BookingStatus, PaymentStatus } from "@/features/bookings/types"
 
 export const BOOKING_STATUS_STYLES: Record<BookingStatus, string> = {
+  pending_confirmation: "bg-amber-100 text-amber-800",
+  awaiting_approval: "bg-sky-100 text-sky-800",
+  declined: "bg-destructive/10 text-destructive",
   pending: "bg-yellow-100 text-yellow-800",
   confirmed: "bg-primary/10 text-primary",
   completed: "bg-secondary text-secondary-foreground",
@@ -11,6 +14,9 @@ export const BOOKING_STATUS_STYLES: Record<BookingStatus, string> = {
 }
 
 export const BOOKING_STATUS_LABEL: Record<BookingStatus, string> = {
+  pending_confirmation: "Pending confirmation",
+  awaiting_approval: "Price ready - approve",
+  declined: "Not available",
   pending: "Awaiting payment",
   confirmed: "Confirmed",
   completed: "Completed",
@@ -27,6 +33,13 @@ export const PAYMENT_STATUS_LABEL: Record<PaymentStatus, string> = {
   refunded: "Refunded",
   partially_refunded: "Partly refunded",
 }
+
+/** Hotel request that is still being handled (nothing to pay yet). */
+export const isRequestStage = (b: { bookingStatus: BookingStatus }) => b.bookingStatus === "pending_confirmation" || b.bookingStatus === "awaiting_approval"
+
+/** The admin sent a final price and the customer can still accept it. */
+export const canApprovePrice = (b: { bookingStatus: BookingStatus; expiresAt?: string }) =>
+  b.bookingStatus === "awaiting_approval" && (!b.expiresAt || new Date(b.expiresAt).getTime() > Date.now())
 
 /** A booking the customer can still pay for. */
 export const isPayable = (b: { bookingStatus: BookingStatus; paymentStatus: PaymentStatus; expiresAt?: string }) =>

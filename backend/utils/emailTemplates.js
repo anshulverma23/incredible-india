@@ -141,6 +141,66 @@ const emailTemplates = {
       "Your booking hold expired"
     ),
 
+  /* ---------------- Hotel request flow ---------------- */
+
+  // Customer: request received (no payment yet)
+  hotelRequestReceived: (name, b) =>
+    layout(
+      "We received your booking request",
+      `<h2 style="margin-top:0;">Request received, ${esc(name)}!</h2><p>Your request is <strong>pending confirmation</strong>. Our team will check price and availability with the hotel and send you the final price. <strong>You do not need to pay anything now.</strong></p>${table([
+        ...bookingRows(b),
+        row("Estimated price", `${inr(b.estimatedBasePrice ?? b.pricing?.basePrice)} (before taxes)`),
+      ])}<p style="color:#666;font-size:13px;">The estimate can change once the hotel confirms. You will approve the final price before paying.</p>${button(`${env.FRONTEND_URL}/bookings/${b._id}`, "View Request")}`,
+      `Request ${b.bookingReference} received`
+    ),
+
+  // Admin: a customer asked for a hotel
+  adminNewHotelRequest: (b, customer) =>
+    layout(
+      "New hotel booking request",
+      `<h2 style="margin-top:0;">New hotel booking request</h2><p>Contact the hotel owner, confirm price and availability, then send the final price to the customer.</p>${table([
+        ...bookingRows(b),
+        row("Customer", `${esc(customer?.name)} (${esc(customer?.email)})`),
+        row("Estimated price", inr(b.estimatedBasePrice ?? b.pricing?.basePrice)),
+        ...(b.specialRequests ? [row("Special requests", esc(b.specialRequests))] : []),
+      ])}${button(`${env.FRONTEND_URL}/admin/bookings`, "Open Admin Panel")}`,
+      `Hotel request ${b.bookingReference}`
+    ),
+
+  // Customer: final price is ready, waiting for approval
+  hotelQuoteSent: (name, b) =>
+    layout(
+      "Your final price is ready",
+      `<h2 style="margin-top:0;">Good news, ${esc(name)}!</h2><p>The hotel has confirmed availability. Please review the final price and approve it to continue to payment.</p>${table([
+        ...bookingRows(b),
+        row("Base price", inr(b.pricing?.basePrice)),
+        row("Taxes", inr(b.pricing?.tax)),
+        row("Final price", inr(b.pricing?.totalAmount)),
+        row("Valid until", b.quote?.validUntil ? new Date(b.quote.validUntil).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : "-"),
+      ])}${b.quote?.note ? `<p style="white-space:pre-wrap;">${esc(b.quote.note)}</p>` : ""}${button(`${env.FRONTEND_URL}/bookings/${b._id}`, "Review & Approve")}<p style="color:#666;font-size:13px;">Nothing is charged until you approve and pay.</p>`,
+      `Final price for ${b.bookingReference}`
+    ),
+
+  // Customer: hotel could not confirm
+  hotelRequestDeclined: (name, b, reason) =>
+    layout(
+      "Booking request update",
+      `<h2 style="margin-top:0;">Hi ${esc(name)},</h2><p>Sorry - the hotel could not confirm your request <strong>${esc(b.bookingReference)}</strong> for these dates.</p>${reason ? `<p style="white-space:pre-wrap;"><strong>Reason:</strong> ${esc(reason)}</p>` : ""}${table(bookingRows(b))}<p>You have not been charged. You can try other dates or another hotel.</p>${button(`${env.FRONTEND_URL}/hotels`, "Browse hotels")}`,
+      `Request ${b.bookingReference} could not be confirmed`
+    ),
+
+  // Customer: request or quote ran out of time
+  hotelRequestExpired: (name, b, stage) =>
+    layout(
+      "Booking request closed",
+      `<h2 style="margin-top:0;">Hi ${esc(name)},</h2><p>${
+        stage === "awaiting_approval"
+          ? `The final price for <strong>${esc(b.bookingReference)}</strong> was not approved in time, so the offer has expired.`
+          : `We could not confirm your request <strong>${esc(b.bookingReference)}</strong> in time and it has been closed.`
+      } You have not been charged. Please make a new request and we will help you again.</p>${button(`${env.FRONTEND_URL}/hotels`, "Browse hotels")}`,
+      `Request ${b.bookingReference} closed`
+    ),
+
   // Contact form -> admin
   contactMessage: ({ name, email, subject, message }) =>
     layout(

@@ -8,14 +8,9 @@ import { formatDate, formatINR } from "@/lib/utils"
 import { useAuth } from "@/features/auth/hooks/useAuth"
 import { bookingApi } from "@/features/bookings/api/booking.api"
 import { wishlistApi } from "@/features/wishlist/api/wishlist.api"
+import { BOOKING_STATUS_LABEL, BOOKING_STATUS_STYLES } from "@/features/bookings/lib/status"
 import type { Booking } from "@/features/bookings/types"
 
-const statusColors: Record<string, string> = {
-  pending: "bg-yellow-100 text-yellow-800",
-  confirmed: "bg-primary/10 text-primary",
-  cancelled: "bg-destructive/10 text-destructive",
-  completed: "bg-secondary text-secondary-foreground",
-}
 
 export default function DashboardPage() {
   const { user } = useAuth()
@@ -93,7 +88,7 @@ export default function DashboardPage() {
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="text-sm font-semibold text-foreground">{formatINR(b.pricing.totalAmount)}</span>
-                      <Badge className={statusColors[b.bookingStatus]}>{b.bookingStatus}</Badge>
+                      <Badge className={BOOKING_STATUS_STYLES[b.bookingStatus]}>{BOOKING_STATUS_LABEL[b.bookingStatus]}</Badge>
                     </div>
                   </Card>
                 </Link>

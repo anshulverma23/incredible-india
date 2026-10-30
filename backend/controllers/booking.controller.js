@@ -1,6 +1,7 @@
 const asyncHandler = require("express-async-handler");
 const Booking = require("../models/booking.model");
 const Payment = require("../models/payment.model");
+const Hotel = require("../models/hotel.model");
 const bookingService = require("../services/booking.service");
 const { buildInvoice } = require("../utils/invoice");
 const { parsePagination, paginationMeta } = require("../utils/pagination");
@@ -40,12 +41,16 @@ const canSee = async (user, booking) => {
 
 // @route GET /api/bookings/:id
 const getBookingById = asyncHandler(async (req, res) => {
-  const booking = await Booking.findById(req.params.id)
+  const isAdmin = req.user.role === "admin";
+  // adminNotes are private (select:false) - only admins ask for them
+  let query = Booking.findById(req.params.id)
     .populate("hotel")
     .populate("room")
     .populate("package")
     .populate("user", "name email phone")
     .populate("coupon", "code discountType discountValue");
+  if (isAdmin) query = query.select("+adminNotes").populate("adminNotes.by", "name");
+  const booking = await query;
   if (!booking) {
     res.status(404);
     throw new Error("Booking not found");
@@ -55,13 +60,45 @@ const getBookingById = asyncHandler(async (req, res) => {
     throw new Error("Not authorized to view this booking");
   }
   const refundPreview = booking.bookingStatus === "confirmed" ? bookingService.previewRefund(booking) : undefined;
-  res.status(200).json({ success: true, booking, refundPreview });
+
+  // Admin needs the hotel owner's phone/email to confirm a request; customers never receive it.
+  let out = booking;
+  if (isAdmin && booking.hotel?._id) {
+    const h = await Hotel.findById(booking.hotel._id).select("+ownerContact").lean();
+    out = booking.toObject();
+    out.hotel = { ...out.hotel, ownerContact: h?.ownerContact || null };
+  }
+  res.status(200).json({ success: true, booking: out, refundPreview });
 });
 
 // @route PUT /api/bookings/:id/cancel
 const cancelBooking = asyncHandler(async (req, res) => {
   const { booking, refund } = await bookingService.cancelBooking(req.params.id, req.user, req.body);
   res.status(200).json({ success: true, message: "Booking cancelled", booking, refund });
+});
+
+// @route PUT /api/bookings/:id/approve   (customer accepts the final price -> goes to payment)
+const approveQuote = asyncHandler(async (req, res) => {
+  const booking = await bookingService.approveQuote(req.params.id, req.user);
+  res.status(200).json({ success: true, message: "Price approved. Please complete the payment.", booking });
+});
+
+// @route PUT /api/bookings/:id/quote   (admin: final price agreed with the hotel)
+const sendQuote = asyncHandler(async (req, res) => {
+  const booking = await bookingService.sendQuote(req.params.id, req.user, req.body);
+  res.status(200).json({ success: true, message: "Final price sent to the customer", booking });
+});
+
+// @route PUT /api/bookings/:id/decline   (admin: hotel cannot host this stay)
+const declineRequest = asyncHandler(async (req, res) => {
+  const booking = await bookingService.declineRequest(req.params.id, req.user, req.body);
+  res.status(200).json({ success: true, message: "Request declined", booking });
+});
+
+// @route POST /api/bookings/:id/notes   (admin: private note, e.g. "called hotel owner")
+const addAdminNote = asyncHandler(async (req, res) => {
+  const adminNotes = await bookingService.addAdminNote(req.params.id, req.user, req.body.note);
+  res.status(201).json({ success: true, adminNotes });
 });
 
 // @route GET /api/bookings   (admin)
@@ -138,4 +175,4 @@ const applyCoupon = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true, booking });
 });
 
-module.exports = { createBooking, getMyBookings, getBookingById, cancelBooking, getAllBookings, updateBookingStatus, generateInvoice, applyCoupon };
+module.exports = { createBooking, getMyBookings, getBookingById, cancelBooking, getAllBookings, updateBookingStatus, generateInvoice, applyCoupon, approveQuote, sendQuote, declineRequest, addAdminNote };

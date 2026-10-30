@@ -20,7 +20,15 @@ export interface Hotel {
   numReviews: number
   isActive: boolean
   minPrice?: number | null
+  /** ADMIN ONLY (booking detail for admins): contact used to confirm booking requests. */
+  ownerContact?: OwnerContact | null
   createdAt?: string
+}
+
+export interface OwnerContact {
+  name?: string
+  phone?: string
+  email?: string
 }
 
 export interface Room {

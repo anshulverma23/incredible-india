@@ -1,7 +1,10 @@
 const mongoose = require("mongoose");
 const { generateBookingReference } = require("../utils/bookingRef");
 
-const BOOKING_STATUSES = ["pending", "confirmed", "cancelled", "failed", "refunded", "completed", "expired"];
+// Hotel request flow:  pending_confirmation -> awaiting_approval -> pending (awaiting payment) -> confirmed
+//                      (or "declined" when the hotel cannot host the stay)
+// Packages skip the first two steps and start at "pending" (awaiting payment).
+const BOOKING_STATUSES = ["pending_confirmation", "awaiting_approval", "pending", "confirmed", "cancelled", "failed", "refunded", "completed", "expired", "declined"];
 const PAYMENT_STATUSES = ["pending", "paid", "failed", "refunded", "partially_refunded"];
 
 // Statuses that still occupy inventory (rooms / package seats). Everything else frees the slot.
@@ -14,6 +17,16 @@ const statusHistorySchema = new mongoose.Schema(
     at: { type: Date, default: Date.now },
     by: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     note: String,
+  },
+  { _id: false }
+);
+
+// Internal notes written by admins (e.g. "Called hotel owner, 2 rooms free"). Never sent to customers.
+const adminNoteSchema = new mongoose.Schema(
+  {
+    note: { type: String, required: true, maxlength: 1000 },
+    by: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    at: { type: Date, default: Date.now },
   },
   { _id: false }
 );
@@ -50,6 +63,19 @@ const bookingSchema = new mongoose.Schema(
       tax: { type: Number, default: 0, min: 0 },
       totalAmount: { type: Number, required: true, min: 0 },
     },
+
+    // Hotel request flow: `pricing` holds an ESTIMATE until the admin sends the final price in `quote`.
+    estimatedBasePrice: { type: Number, min: 0 },
+    quote: {
+      amount: { type: Number, min: 0 }, // final price agreed with the hotel (before tax)
+      note: { type: String, maxlength: 500 }, // message shown to the customer
+      sentAt: Date,
+      sentBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      validUntil: Date,
+    },
+    approvedAt: Date, // customer accepted the final price -> payment window starts here
+    declineReason: { type: String, maxlength: 500 },
+    adminNotes: { type: [adminNoteSchema], default: [], select: false },
 
     payment: { type: mongoose.Schema.Types.ObjectId, ref: "Payment" },
     paymentStatus: { type: String, enum: PAYMENT_STATUSES, default: "pending", index: true },
@@ -103,12 +129,16 @@ bookingSchema.methods.setStatus = function (status, { by, note } = {}) {
 bookingSchema.statics.INVENTORY_STATUSES = INVENTORY_STATUSES;
 bookingSchema.statics.BOOKING_STATUSES = BOOKING_STATUSES;
 
-/** Filter fragment: bookings that currently block inventory (confirmed, or pending-and-not-yet-expired). */
+/**
+ * Filter fragment: bookings that currently block inventory.
+ * confirmed/completed always; "pending" (awaiting payment) and "awaiting_approval" (price quoted, rooms reserved
+ * for the customer) only until their `expiresAt`. A plain request ("pending_confirmation") holds nothing.
+ */
 bookingSchema.statics.activeHoldFilter = function (now = new Date()) {
   return {
     $or: [
       { bookingStatus: { $in: ["confirmed", "completed"] } },
-      { bookingStatus: "pending", expiresAt: { $gt: now } },
+      { bookingStatus: { $in: ["pending", "awaiting_approval"] }, expiresAt: { $gt: now } },
     ],
   };
 };

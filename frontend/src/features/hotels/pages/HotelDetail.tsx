@@ -60,7 +60,8 @@ export default function HotelDetailsPage() {
   const nights = checkIn && checkOut ? nightsBetween(checkIn, checkOut) : 0
   const totalEstimate = selectedRoom && nights ? selectedRoom.price * nights * numberOfRooms : 0
 
-  const handleBook = async () => {
+  // Hotels are a REQUEST: nothing is paid now. Our team confirms price + availability with the hotel first.
+  const handleRequest = async () => {
     setBookingError("")
     if (!user) {
       navigate("/login")
@@ -86,9 +87,9 @@ export default function HotelDetailsPage() {
         numberOfRooms,
         guests: { adults, children },
       })
-      navigate(`/checkout/${booking._id}`)
+      navigate(`/bookings/${booking._id}?requested=1`)
     } catch (err) {
-      setBookingError(err instanceof ApiError ? err.message : "Could not create booking")
+      setBookingError(err instanceof ApiError ? err.message : "Could not send your request")
     } finally {
       setSubmitting(false)
     }
@@ -197,7 +198,8 @@ export default function HotelDetailsPage() {
           {/* Booking widget */}
           <div className="lg:col-span-1">
             <Card className="sticky top-28 p-5">
-              <h3 className="font-serif text-xl font-bold text-foreground mb-4">Book Your Stay</h3>
+              <h3 className="font-serif text-xl font-bold text-foreground">Request Your Stay</h3>
+              <p className="mb-4 mt-1 text-xs text-muted-foreground">No payment now. We confirm price and availability with the hotel, then you approve the final price.</p>
 
               {bookingError && <Alert variant="destructive" className="mb-4">{bookingError}</Alert>}
 
@@ -247,16 +249,22 @@ export default function HotelDetailsPage() {
                       <span>{formatINR(selectedRoom.price)} x {nights} night{nights > 1 ? "s" : ""} x {numberOfRooms} room{numberOfRooms > 1 ? "s" : ""}</span>
                     </div>
                     <div className="mt-1 flex justify-between font-semibold text-foreground">
-                      <span>Estimated total</span>
+                      <span>Estimated price</span>
                       <span>{formatINR(totalEstimate)}</span>
                     </div>
-                    <p className="mt-1 text-[11px] text-muted-foreground">Taxes calculated at checkout</p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">Estimate only. The final price (with taxes) is confirmed by our team after speaking to the hotel.</p>
                   </div>
                 )}
 
-                <Button onClick={handleBook} disabled={submitting} className="w-full bg-primary text-primary-foreground hover:bg-primary/90 py-5">
-                  {submitting ? "Creating booking..." : user ? "Book Now" : "Log in to Book"}
+                <Button onClick={handleRequest} disabled={submitting} className="w-full bg-primary text-primary-foreground hover:bg-primary/90 py-5">
+                  {submitting ? "Sending request..." : user ? "Request Booking" : "Log in to Request"}
                 </Button>
+
+                <ol className="space-y-1 pt-1 text-[11px] text-muted-foreground">
+                  <li>1. You send a request (free)</li>
+                  <li>2. We confirm price &amp; availability with the hotel</li>
+                  <li>3. You approve the final price, then pay to confirm</li>
+                </ol>
               </div>
             </Card>
           </div>

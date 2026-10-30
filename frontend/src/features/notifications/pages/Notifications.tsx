@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom"
-import { Bell, CheckCheck, CreditCard, CalendarCheck, XCircle, RotateCcw, Plane, Star, Clock } from "lucide-react"
+import { Bell, CheckCheck, CreditCard, CalendarCheck, XCircle, RotateCcw, Plane, Star, Clock, Hourglass, BadgeIndianRupee } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { PageLoader } from "@/components/ui/spinner"
@@ -16,6 +16,9 @@ const ICONS: Record<NotificationType, typeof Bell> = {
   refund_processed: RotateCcw,
   trip_reminder: Plane,
   booking_expired: Clock,
+  booking_request: Hourglass,
+  booking_quote: BadgeIndianRupee,
+  booking_declined: XCircle,
   review_prompt: Star,
   general: Bell,
 }

@@ -97,6 +97,10 @@ const parseBody = (body) => {
   const data = pick(body, FIELDS);
   if (body.amenities !== undefined) data.amenities = parseJsonField(body.amenities, "amenities", []);
   if (body.location !== undefined) data.location = parseJsonField(body.location, "location", {});
+  if (body.ownerContact !== undefined) {
+    const c = parseJsonField(body.ownerContact, "ownerContact", {}) || {};
+    data.ownerContact = { name: String(c.name || "").trim(), phone: String(c.phone || "").trim(), email: String(c.email || "").trim() };
+  }
   return data;
 };
 
@@ -154,4 +158,14 @@ const checkAvailability = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true, available: free >= Number(rooms), availableRooms: free });
 });
 
-module.exports = { getHotels, getHotelById, createHotel, updateHotel, deleteHotel, checkAvailability };
+// @route GET /api/hotels/:id/owner-contact   (admin) - private contact used to confirm booking requests
+const getOwnerContact = asyncHandler(async (req, res) => {
+  const hotel = await Hotel.findById(req.params.id).select("name +ownerContact").lean();
+  if (!hotel) {
+    res.status(404);
+    throw new Error("Hotel not found");
+  }
+  res.status(200).json({ success: true, ownerContact: hotel.ownerContact || { name: "", phone: "", email: "" } });
+});
+
+module.exports = { getHotels, getHotelById, createHotel, updateHotel, deleteHotel, checkAvailability, getOwnerContact };

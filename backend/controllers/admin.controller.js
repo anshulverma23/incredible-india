@@ -117,6 +117,8 @@ const getDashboard = asyncHandler(async (req, res) => {
       grossRevenue: gross,
       refundedAmount: refunds,
       pendingBookings: n("pending"),
+      pendingRequests: n("pending_confirmation"), // hotel requests waiting for the admin to contact the hotel
+      awaitingApproval: n("awaiting_approval"), // final price sent, waiting for the customer
       confirmedBookings: n("confirmed"),
       completedBookings: n("completed"),
       cancelledBookings: n("cancelled") + n("refunded"),

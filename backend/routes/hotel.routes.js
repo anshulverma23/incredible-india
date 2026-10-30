@@ -17,6 +17,7 @@ router.put("/:id", protect, hotelStaff, uploadHotelImages.array("images", 8), c.
 router.delete("/:id", protect, admin, c.deleteHotel);
 
 router.get("/:id/availability", c.checkAvailability);
+router.get("/:id/owner-contact", protect, admin, c.getOwnerContact);
 
 // Rooms (nested)
 router.get("/:hotelId/rooms", r.getRoomsByHotel);

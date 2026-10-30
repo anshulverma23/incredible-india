@@ -1,5 +1,6 @@
 const { z } = require("zod");
 const { objectId, isoDate } = require("./common");
+const { HOTEL_REQUEST } = require("../config/policy");
 
 const guests = z
   .object({
@@ -40,10 +41,23 @@ const cancel = z.object({
   refundPercent: z.coerce.number().min(0).max(100).optional(),
 });
 
-const adminStatus = z.object({ bookingStatus: z.enum(["pending", "confirmed", "cancelled", "failed", "refunded", "completed", "expired"]) });
+const ALL_STATUSES = ["pending_confirmation", "awaiting_approval", "pending", "confirmed", "cancelled", "failed", "refunded", "completed", "expired", "declined"];
+
+const adminStatus = z.object({ bookingStatus: z.enum(ALL_STATUSES) });
+
+// Admin -> customer: final price (before tax) agreed with the hotel owner
+const sendQuote = z.object({
+  finalPrice: z.coerce.number({ error: "Final price is required" }).int("Enter the price in whole rupees").min(1, "Price must be greater than 0").max(10_000_000),
+  validHours: z.coerce.number().int().min(1).max(HOTEL_REQUEST.maxQuoteValidityHours).optional(),
+  note: z.string().trim().max(500).optional(),
+});
+
+const declineRequest = z.object({ reason: z.string().trim().min(3, "Please give the customer a reason").max(500) });
+
+const adminNote = z.object({ note: z.string().trim().min(1, "Note cannot be empty").max(1000) });
 
 const listQuery = z.object({
-  status: z.enum(["pending", "confirmed", "cancelled", "failed", "refunded", "completed", "expired"]).optional(),
+  status: z.enum(ALL_STATUSES).optional(),
   paymentStatus: z.enum(["pending", "paid", "failed", "refunded", "partially_refunded"]).optional(),
   type: z.enum(["hotel", "package"]).optional(),
   search: z.string().trim().max(60).optional(),
@@ -53,4 +67,4 @@ const listQuery = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional(),
 });
 
-module.exports = { createBooking, applyCoupon, cancel, adminStatus, listQuery };
+module.exports = { createBooking, applyCoupon, cancel, adminStatus, listQuery, sendQuote, declineRequest, adminNote };
