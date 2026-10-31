@@ -3,7 +3,7 @@ import { Header } from "@/components/layout/header"
 import { Footer } from "@/components/layout/footer"
 import { PageMeta } from "@/components/common/page-meta"
 import { RequireAuth } from "@/features/auth/components/route-guards"
-import { pageTitle } from "@/lib/seo."
+import { pageTitle } from "@/lib/seo"
 
 const TITLES: Record<string, string> = {
   dashboard: "My Dashboard",
