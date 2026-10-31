@@ -92,6 +92,7 @@ app.use("/api/admin", require("./routes/admin.routes"));
 app.use("/api/blogs", require("./routes/blog.routes"));
 app.use("/api/faqs", require("./routes/faq.routes"));
 app.use("/api/contact", require("./routes/contact.routes"));
+app.use("/api/seo", require("./routes/seo.routes"));
 
 app.use(notFound);
 app.use(errorHandler);

@@ -36,6 +36,7 @@ services:
       context: ./frontend
       args:
         VITE_API_URL: http://localhost:8000/api
+        VITE_SITE_URL: ${VITE_SITE_URL:-http://localhost:5173}
         VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
         VITE_RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
     restart: unless-stopped

@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card"
 import { HotelCard } from "@/components/cards/hotel-card"
 import { PackageCard } from "@/components/cards/package-card"
 import { PageMeta } from "@/components/common/page-meta"
+import { absoluteUrl, pageTitle, truncate } from "@/lib/seo"
 import { WishlistButton } from "@/features/wishlist/components/wishlist-button"
 import { destinationApi } from "@/features/destinations/api/destination.api"
 import { destinationPath, isObjectId } from "@/features/destinations/lib/destination-path"
@@ -64,6 +65,7 @@ export default function DestinationPage() {
       <main className="min-h-screen flex items-center justify-center">
         <div className="flex flex-col items-center gap-4 text-muted-foreground text-center px-4">
           <AlertCircle className="size-12 text-destructive" />
+          <PageMeta title={pageTitle("Destination not found")} noindex />
           <h2 className="text-2xl font-bold text-foreground">Destination Not Found</h2>
           <p>Sorry, we couldn't load this destination. It may not exist or there was a connection issue.</p>
           <Button render={<Link to="/destinations" />} className="mt-2">
@@ -80,9 +82,20 @@ export default function DestinationPage() {
   return (
     <main className="min-h-screen bg-background">
       <PageMeta
-        title={`${destination.name}, ${destination.state} - Travel Guide, Hotels & Tour Packages | Incredible India Travel`}
-        description={destination.description.replace(/\s+/g, " ").trim().slice(0, 155)}
+        title={pageTitle(`${destination.name} Travel Guide - Hotels & Packages`)}
+        description={truncate(destination.description)}
         canonical={destinationPath(destination)}
+        image={destination.gallery?.[0]?.url}
+        jsonLd={{
+          "@context": "https://schema.org",
+          "@type": "TouristDestination",
+          name: destination.name,
+          description: truncate(destination.description, 300),
+          url: absoluteUrl(destinationPath(destination)),
+          ...(destination.gallery?.length > 0 && { image: destination.gallery.map((img) => img.url) }),
+          ...(destination.tags?.length > 0 && { touristType: destination.tags }),
+          ...(destination.coordinates?.lat && { geo: { "@type": "GeoCoordinates", latitude: destination.coordinates.lat, longitude: destination.coordinates.lng } }),
+        }}
       />
       {/* Hero Section */}
       <section className="relative h-[60vh] md:h-[75vh] overflow-hidden">

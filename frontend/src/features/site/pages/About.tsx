@@ -1,9 +1,11 @@
+import { pageTitle } from "@/lib/seo"
 import { Card } from "@/components/ui/card"
 import { Users, MapPin, Award, HeartHandshake } from "lucide-react"
 import { PageMeta } from "@/components/common/page-meta"
 
 const metadata = {
-  title: "About Us | Incredible India Tours",
+  title: pageTitle("About Us"),
+  canonical: "/about",
   description: "Learn about Incredible India Tours - your trusted partner for hotels, tour packages, and unforgettable journeys across India.",
 }
 

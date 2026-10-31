@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { PageLoader } from "@/components/ui/spinner"
 import { PageMeta } from "@/components/common/page-meta"
+import { absoluteUrl, pageTitle, truncate, SITE_NAME } from "@/lib/seo"
 
 import { blogApi } from "@/features/blog/api/blog.api"
 import type { BlogPost } from "@/features/blog/types"
@@ -57,6 +58,7 @@ export default function BlogDetailPage() {
   if (error || !blog) {
     return (
       <main className="min-h-screen pt-28 pb-20 bg-muted/20">
+        <PageMeta title={pageTitle("Blog post not found")} noindex />
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
           <Card className="p-10 text-center">
 
@@ -87,8 +89,23 @@ export default function BlogDetailPage() {
   return (
     <>
       <PageMeta
-        title={`${blog.title} | Incredible India Tours`}
-        description={blog.excerpt}
+        title={pageTitle(blog.title)}
+        description={truncate(blog.excerpt)}
+        canonical={`/blog/${blog.slug}`}
+        image={blog.image}
+        type="article"
+        jsonLd={{
+          "@context": "https://schema.org",
+          "@type": "BlogPosting",
+          headline: blog.title,
+          description: truncate(blog.excerpt, 300),
+          ...(blog.image && { image: [blog.image] }),
+          author: { "@type": "Person", name: blog.author },
+          publisher: { "@type": "Organization", name: SITE_NAME },
+          datePublished: blog.createdAt || blog.date,
+          ...(blog.updatedAt && { dateModified: blog.updatedAt }),
+          mainEntityOfPage: absoluteUrl(`/blog/${blog.slug}`),
+        }}
       />
 
       <main className="min-h-screen pt-28 pb-20 bg-muted/20">

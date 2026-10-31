@@ -12,6 +12,8 @@ export const env = {
   GOOGLE_CLIENT_ID:
     (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined) ||
     "placeholder_client_id",
+  /** Public https URL of the website, no trailing slash (e.g. https://www.example.com). Used for canonical + social-share URLs. */
+  SITE_URL: ((import.meta.env.VITE_SITE_URL as string | undefined) || "").replace(/\/+$/, ""),
   /** Optional: without it MapEmbed falls back to a plain Google Maps link. */
   GOOGLE_MAPS_API_KEY:
     (import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined) || "",

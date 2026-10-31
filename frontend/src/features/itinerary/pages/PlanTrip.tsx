@@ -1,3 +1,5 @@
+import { PageMeta } from "@/components/common/page-meta"
+import { pageTitle } from "@/lib/seo"
 import { useEffect, useState, type FormEvent } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 import { Sparkles, Wallet, MapPin, Clock, Hotel, Package, Save, Trash2, AlertTriangle, CheckCircle2, Route } from "lucide-react"
@@ -96,6 +98,7 @@ export default function PlanTripPage() {
 
   return (
     <main className="min-h-screen bg-background pb-20 pt-28">
+      <PageMeta title={pageTitle("Plan Your India Trip - Free Itinerary Planner")} description="Tell us your destination, days and budget and get a day-by-day India itinerary with a cost estimate, suggested hotels and tour packages." canonical="/plan-trip" />
       <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
         <div className="mb-8">
           <p className="mb-2 flex items-center gap-1.5 text-sm font-medium uppercase tracking-widest text-accent"><Sparkles className="size-4" /> Trip Planner</p>

@@ -9,6 +9,7 @@ import { Alert } from "@/components/ui/alert"
 import { PageLoader } from "@/components/ui/spinner"
 import { StarRating } from "@/components/common/star-rating"
 import { PageMeta } from "@/components/common/page-meta"
+import { absoluteUrl, pageTitle, truncate } from "@/lib/seo"
 import { WishlistButton } from "@/features/wishlist/components/wishlist-button"
 import { ReviewSection } from "@/features/reviews/components/review-section"
 import { formatDate, formatINR } from "@/lib/utils"
@@ -52,6 +53,7 @@ export default function PackageDetailsPage() {
   if (loading) return <PageLoader label="Loading package..." />
   if (!pkg) return (
     <main className="min-h-screen pt-32 pb-20 text-center">
+      <PageMeta title={pageTitle("Package not found")} noindex />
       <p className="text-muted-foreground">Package not found.</p>
     </main>
   )
@@ -87,14 +89,33 @@ export default function PackageDetailsPage() {
     }
   }
 
-  const metaDescription = pkg.description.replace(/\s+/g, " ").trim().slice(0, 155)
+  const metaDescription = truncate(pkg.description)
 
   return (
     <main className="min-h-screen pt-24 pb-20 bg-background">
       <PageMeta
-        title={`${pkg.name} - ${pkg.duration.days} Days / ${pkg.duration.nights} Nights${destinationName ? ` ${destinationName}` : ""} Tour Package | Incredible India Travel`}
+        title={pageTitle(`${pkg.name} - ${pkg.duration.days}D/${pkg.duration.nights}N Tour Package`)}
         description={metaDescription}
         canonical={packagePath(pkg)}
+        image={images[0]?.url}
+        jsonLd={{
+          "@context": "https://schema.org",
+          "@type": ["TouristTrip", "Product"],
+          name: pkg.name,
+          description: truncate(pkg.description, 300),
+          url: absoluteUrl(packagePath(pkg)),
+          ...(images.length > 0 && { image: images.map((img) => img.url) }),
+          touristType: pkg.packageType,
+          ...(destinationName && { itinerary: { "@type": "Place", name: destinationName } }),
+          offers: {
+            "@type": "Offer",
+            price: pkg.price,
+            priceCurrency: "INR",
+            availability: "https://schema.org/InStock",
+            url: absoluteUrl(packagePath(pkg)),
+          },
+          ...(pkg.numReviews > 0 && { aggregateRating: { "@type": "AggregateRating", ratingValue: pkg.rating, reviewCount: pkg.numReviews } }),
+        }}
       />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-8">

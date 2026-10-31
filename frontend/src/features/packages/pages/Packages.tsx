@@ -1,3 +1,5 @@
+import { PageMeta } from "@/components/common/page-meta"
+import { pageTitle } from "@/lib/seo"
 import { useEffect, useState } from "react"
 import { useSearchParams } from "react-router-dom"
 import { SearchBar } from "@/components/common/search-bar"
@@ -55,6 +57,7 @@ export default function PackagesPage() {
 
   return (
     <main className="min-h-screen bg-background pb-20 pt-28">
+      <PageMeta title={pageTitle("India Tour Packages")} description="Explore India tour packages: adventure, luxury, family, honeymoon, pilgrimage and wildlife trips with day-wise itineraries, inclusions and prices." canonical="/packages" />
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
           <div>

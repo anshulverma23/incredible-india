@@ -1,3 +1,5 @@
+import { PageMeta } from "@/components/common/page-meta"
+import { pageTitle } from "@/lib/seo"
 import { Link } from "react-router-dom"
 import { Compass } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -5,6 +7,7 @@ import { Button } from "@/components/ui/button"
 export default function NotFound() {
   return (
     <main className="min-h-screen flex items-center justify-center px-4 pt-24 pb-16">
+      <PageMeta title={pageTitle("Page not found")} noindex />
       <div className="text-center max-w-md">
         <Compass className="mx-auto mb-6 size-14 text-primary" />
         <p className="font-serif text-6xl font-bold text-foreground">404</p>

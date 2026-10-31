@@ -8,6 +8,7 @@ import { Select } from "@/components/ui/select"
 import { Alert } from "@/components/ui/alert"
 import { PageLoader } from "@/components/ui/spinner"
 import { PageMeta } from "@/components/common/page-meta"
+import { absoluteUrl, pageTitle, truncate } from "@/lib/seo"
 import { StarRating } from "@/components/common/star-rating"
 import { WishlistButton } from "@/features/wishlist/components/wishlist-button"
 import { MapEmbed } from "@/components/common/map-embed"
@@ -59,6 +60,7 @@ export default function HotelDetailsPage() {
   if (loading) return <PageLoader label="Loading hotel..." />
   if (!hotel) return (
     <main className="min-h-screen pt-32 pb-20 text-center">
+      <PageMeta title={pageTitle("Hotel not found")} noindex />
       <p className="text-muted-foreground">Hotel not found.</p>
     </main>
   )
@@ -107,9 +109,27 @@ export default function HotelDetailsPage() {
   return (
     <main className="min-h-screen pt-24 pb-20 bg-background">
       <PageMeta
-        title={`${hotel.name} - ${hotel.location.city}${hotel.location.state ? `, ${hotel.location.state}` : ""} | Incredible India Travel`}
-        description={hotel.description.replace(/\s+/g, " ").trim().slice(0, 155)}
+        title={pageTitle(`${hotel.name}, ${hotel.location.city}`)}
+        description={truncate(hotel.description)}
         canonical={hotelPath(hotel)}
+        image={hotel.images[0]?.url}
+        jsonLd={{
+          "@context": "https://schema.org",
+          "@type": "Hotel",
+          name: hotel.name,
+          description: truncate(hotel.description, 300),
+          url: absoluteUrl(hotelPath(hotel)),
+          ...(hotel.images.length > 0 && { image: hotel.images.map((img) => img.url) }),
+          address: {
+            "@type": "PostalAddress",
+            streetAddress: hotel.location.address,
+            addressLocality: hotel.location.city,
+            addressRegion: hotel.location.state,
+            addressCountry: hotel.location.country,
+          },
+          ...(hotel.location.coordinates?.lat && { geo: { "@type": "GeoCoordinates", latitude: hotel.location.coordinates.lat, longitude: hotel.location.coordinates.lng } }),
+          ...(hotel.numReviews > 0 && { aggregateRating: { "@type": "AggregateRating", ratingValue: hotel.rating, reviewCount: hotel.numReviews } }),
+        }}
       />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Gallery */}

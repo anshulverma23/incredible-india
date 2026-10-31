@@ -296,5 +296,7 @@ paths:
     get: { tags: [Admin], summary: "Stats + charts: users, bookings, revenue, pending/cancelled, popular destinations/packages, monthly revenue", responses: { "200": { description: OK } } }
   /admin/reports/revenue:
     get: { tags: [Admin], parameters: [{ name: months, in: query, schema: { type: integer } }], responses: { "200": { description: OK } } }
+  /seo/sitemap.xml:
+    get: { tags: [Admin], security: [], summary: "XML sitemap of all public pages (static pages, destinations, hotels, packages, blog) - served at /sitemap.xml on the website", responses: { "200": { description: application/xml } } }
   /health:
     get: { tags: [Admin], security: [], summary: Health check, responses: { "200": { description: ok } } }

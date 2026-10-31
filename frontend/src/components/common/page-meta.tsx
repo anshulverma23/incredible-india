@@ -1,77 +1,109 @@
 import { useEffect } from "react"
+import { DEFAULT_IMAGE, SITE_NAME, absoluteUrl } from "@/lib/seo"
 
 interface PageMetaProps {
-  /** Full document title for this route. */
+  /** Full document title for this route (use pageTitle("...")). */
   title?: string
-  /** Meta description for this route. */
+  /** Meta description for this route (use truncate(...) for long text). */
   description?: string
-  /** Canonical path, e.g. "/hotels". Resolved against the current origin. */
+  /** Canonical path, e.g. "/hotels" (no query string). Defaults to the current path. */
   canonical?: string
+  /** Share image (absolute URL or a /path). Defaults to the site share image. */
+  image?: string
+  /** Open Graph type. "article" for blog posts. */
+  type?: "website" | "article"
+  /** Private / thin pages (admin, login, checkout, 404): tells search engines not to index them. */
+  noindex?: boolean
+  /** Structured data (schema.org) for this page. */
+  jsonLd?: Record<string, unknown> | Record<string, unknown>[]
 }
 
-/** Creates the tag on first use, then reuses it on later route changes. */
-function upsertMeta(selector: string, create: () => HTMLElement, apply: (el: HTMLElement) => void) {
+type Restore = () => void
+
+/** Creates the tag if needed, sets its value, and returns a function that puts the page back exactly as it was. */
+function setTag(selector: string, create: () => HTMLElement, attr: "content" | "href", value: string): Restore {
   let el = document.head.querySelector<HTMLElement>(selector)
+  const created = !el
   if (!el) {
     el = create()
     document.head.appendChild(el)
   }
-  apply(el)
+  const target = el
+  const previous = target.getAttribute(attr)
+  target.setAttribute(attr, value)
+  return () => {
+    if (created) target.remove()
+    else if (previous === null) target.removeAttribute(attr)
+    else target.setAttribute(attr, previous)
+  }
 }
 
+const nameMeta = (name: string, value: string) =>
+  setTag(`meta[name="${name}"]`, () => Object.assign(document.createElement("meta"), { name }), "content", value)
+
+const propertyMeta = (property: string, value: string) =>
+  setTag(
+    `meta[property="${property}"]`,
+    () => {
+      const el = document.createElement("meta")
+      el.setAttribute("property", property)
+      return el
+    },
+    "content",
+    value
+  )
+
 /**
- * Client-side replacement for the `export const metadata` block Next.js used.
+ * Per-route <title>, description, canonical, Open Graph / Twitter tags, robots and JSON-LD.
  *
- * Site-wide defaults (Open Graph, Twitter card, JSON-LD, robots) live statically
- * in index.html so crawlers see them without running JS; this component only
- * overrides the per-route title, description and canonical URL.
+ * Site-wide defaults live statically in index.html (so crawlers that do not run JavaScript still see
+ * something). This component overrides them while the page is mounted and RESTORES them when the
+ * page unmounts, so a page without <PageMeta> never inherits the previous page's tags.
  */
-export function PageMeta({ title, description, canonical }: PageMetaProps) {
+export function PageMeta({ title, description, canonical, image, type = "website", noindex, jsonLd }: PageMetaProps) {
+  const jsonLdText = jsonLd ? JSON.stringify(jsonLd).replace(/</g, "\\u003c") : ""
+
   useEffect(() => {
+    const restores: Restore[] = []
     const previousTitle = document.title
     if (title) document.title = title
 
-    if (description) {
-      upsertMeta(
-        'meta[name="description"]',
-        () => Object.assign(document.createElement("meta"), { name: "description" }),
-        (el) => el.setAttribute("content", description)
-      )
-      // Keep the social preview in sync with the page description.
-      upsertMeta(
-        'meta[property="og:description"]',
-        () => {
-          const el = document.createElement("meta")
-          el.setAttribute("property", "og:description")
-          return el
-        },
-        (el) => el.setAttribute("content", description)
-      )
-    }
+    const url = absoluteUrl(canonical ?? window.location.pathname)
+    const shareImage = absoluteUrl(image || DEFAULT_IMAGE)
+
+    restores.push(setTag('link[rel="canonical"]', () => Object.assign(document.createElement("link"), { rel: "canonical" }), "href", url))
+    restores.push(propertyMeta("og:url", url))
+    restores.push(propertyMeta("og:type", type))
+    restores.push(propertyMeta("og:site_name", SITE_NAME))
+    restores.push(propertyMeta("og:image", shareImage))
+    restores.push(nameMeta("twitter:card", "summary_large_image"))
+    restores.push(nameMeta("twitter:image", shareImage))
 
     if (title) {
-      upsertMeta(
-        'meta[property="og:title"]',
-        () => {
-          const el = document.createElement("meta")
-          el.setAttribute("property", "og:title")
-          return el
-        },
-        (el) => el.setAttribute("content", title)
-      )
+      restores.push(propertyMeta("og:title", title))
+      restores.push(nameMeta("twitter:title", title))
+    }
+    if (description) {
+      restores.push(nameMeta("description", description))
+      restores.push(propertyMeta("og:description", description))
+      restores.push(nameMeta("twitter:description", description))
+    }
+    if (noindex) restores.push(nameMeta("robots", "noindex, nofollow"))
+
+    if (jsonLdText) {
+      const script = document.createElement("script")
+      script.type = "application/ld+json"
+      script.dataset.pageMeta = "true"
+      script.textContent = jsonLdText
+      document.head.appendChild(script)
+      restores.push(() => script.remove())
     }
 
-    upsertMeta(
-      'link[rel="canonical"]',
-      () => Object.assign(document.createElement("link"), { rel: "canonical" }),
-      (el) => el.setAttribute("href", new URL(canonical ?? window.location.pathname, window.location.origin).href)
-    )
-
-    // Restore the previous title when leaving the route.
     return () => {
       document.title = previousTitle
+      restores.reverse().forEach((restore) => restore())
     }
-  }, [title, description, canonical])
+  }, [title, description, canonical, image, type, noindex, jsonLdText])
 
   return null
 }

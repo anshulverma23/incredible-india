@@ -1,3 +1,5 @@
+import { PageMeta } from "@/components/common/page-meta"
+import { pageTitle } from "@/lib/seo"
 import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import { SearchBar } from "@/components/common/search-bar"
@@ -35,6 +37,7 @@ export default function DestinationsPage() {
 
   return (
     <main className="min-h-screen pt-28 pb-20 bg-background">
+      <PageMeta title={pageTitle("Best Places to Visit in India")} description="Discover the best places to visit in India. Read destination guides, find hotels and book tour packages for every state and city." canonical="/destinations" />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-8 max-w-2xl">
           <p className="text-accent font-medium text-sm uppercase tracking-widest mb-2">Explore</p>

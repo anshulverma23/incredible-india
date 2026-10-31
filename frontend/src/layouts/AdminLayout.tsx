@@ -15,6 +15,7 @@ import {
   FileQuestionMark,
 } from "lucide-react"
 import { RequireAdmin } from "@/features/auth/components/route-guards"
+import { PageMeta } from "@/components/common/page-meta"
 import { cn } from "@/lib/utils"
 
 const navItems = [
@@ -35,9 +36,12 @@ const navItems = [
 
 function AdminShell({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation()
+  const current = navItems.find((item) => item.href === pathname)
+  const label = current ? current.label.charAt(0).toUpperCase() + current.label.slice(1) : "Admin Panel"
 
   return (
     <div className="min-h-screen bg-muted/20 flex">
+      <PageMeta title={`${label} | Admin - Incredible India Travel`} noindex />
       <aside className="hidden md:flex w-64 shrink-0 flex-col border-r border-border bg-card">
         <div className="p-5 border-b border-border">
           <Link to="/" className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary">
