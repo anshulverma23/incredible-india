@@ -72,6 +72,9 @@ try {
   logger.warn(`Swagger docs not available: ${e.message}`);
 }
 
+// Every public page view is proxied through here (all visitors share the proxy's IP), so it must not count against the API rate limit.
+app.get("/api/seo/page", require("./controllers/seo.controller").getPage);
+
 app.use("/api", apiLimiter);
 
 app.get("/", (req, res) => res.json({ success: true, message: "India Travel API is running" }));

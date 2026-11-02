@@ -161,32 +161,37 @@ const renderSharePage = ({ title, description, url, image, ogType = "website" })
 </html>
 `;
 
+// Everything a page needs for its <head> (title, description, canonical url, photo) for one hotel / package / destination / post.
+const buildItemMeta = async (base, type, slug) => {
+  const config = SHARE_TYPES[type];
+  if (!config || !SLUG_OR_ID.test(slug)) return null;
+  const filter = { ...(config.active && { isActive: true }), ...(isObjectId(slug) ? { _id: slug } : { slug: slug.toLowerCase() }) };
+  const doc = await config.model.findOne(filter).select(config.fields).lean();
+  if (!doc) return null;
+  const image = config.image(doc);
+  return {
+    title: config.title(doc),
+    description: truncate(config.text(doc)) || DEFAULT_DESCRIPTION,
+    url: `${base}/${type}/${encodeURIComponent(doc.slug || slug)}`,
+    image: image ? (/^https?:\/\//i.test(image) ? image : `${base}${image}`) : `${base}${DEFAULT_IMAGE}`,
+    ogType: config.ogType,
+  };
+};
+
 // @desc    Social-share HTML (title / description / photo) for one public page, for crawlers that do not run JavaScript
 // @route   GET /api/seo/share/:type/:slug      (type = hotels | packages | destinations | blog)
 // @access  Public
 const getSharePage = asyncHandler(async (req, res) => {
   const base = env.FRONTEND_URL.replace(/\/+$/, "");
   const { type, slug } = req.params;
-  const config = SHARE_TYPES[type];
-  const fallback = () => res.redirect(302, `${base}${config ? `/${type}` : "/"}`);
-
-  if (!config || !SLUG_OR_ID.test(slug)) return fallback();
+  const fallback = () => res.redirect(302, `${base}${SHARE_TYPES[type] ? `/${type}` : "/"}`);
 
   const cacheKey = `seo:share:${type}:${slug}`;
   let html = cache.get(cacheKey);
   if (!html) {
-    const filter = { ...(config.active && { isActive: true }), ...(isObjectId(slug) ? { _id: slug } : { slug: slug.toLowerCase() }) };
-    const doc = await config.model.findOne(filter).select(config.fields).lean();
-    if (!doc) return fallback();
-
-    const image = config.image(doc);
-    html = renderSharePage({
-      title: config.title(doc),
-      description: truncate(config.text(doc)) || DEFAULT_DESCRIPTION,
-      url: `${base}/${type}/${encodeURIComponent(doc.slug || slug)}`,
-      image: image ? (/^https?:\/\//i.test(image) ? image : `${base}${image}`) : `${base}${DEFAULT_IMAGE}`,
-      ogType: config.ogType,
-    });
+    const meta = await buildItemMeta(base, type, slug);
+    if (!meta) return fallback();
+    html = renderSharePage(meta);
     cache.set(cacheKey, html, CACHE_SECONDS);
   }
 
@@ -195,4 +200,113 @@ const getSharePage = asyncHandler(async (req, res) => {
   res.status(200).send(html);
 });
 
-module.exports = { getSitemap, getSharePage, buildSitemap, escapeXml };
+// ---------------------------------------------------------------------------
+// Full pages with the right <head> in the HTML source ("View page source", Google, WhatsApp...).
+// The host (Vercel rewrite / nginx) sends public page URLs here. We take the built frontend's
+// index.html and swap in this page's title, description, canonical and share tags, so every
+// visitor gets the real SPA, just with correct tags already in the source.
+// ---------------------------------------------------------------------------
+const pageTitle = (title) => `${title} | ${SITE_NAME}`;
+const STATIC_META = {
+  "/hotels": [pageTitle("Hotels in India - Book Your Stay"), "Browse hotels across India, from budget stays to luxury resorts and heritage palaces. Compare rooms, prices and amenities, then send a booking request."],
+  "/packages": [pageTitle("India Tour Packages"), "Explore India tour packages: adventure, luxury, family, honeymoon, pilgrimage and wildlife trips with day-wise itineraries, inclusions and prices."],
+  "/destinations": [pageTitle("Best Places to Visit in India"), "Discover the best places to visit in India. Read destination guides, find hotels and book tour packages for every state and city."],
+  "/blog": [pageTitle("Travel Blog - India Travel Stories & Tips"), "Travel stories, destination guides and practical tips for planning your trip to India."],
+  "/plan-trip": [pageTitle("Plan Your India Trip - Free Itinerary Planner"), "Tell us your destination, days and budget and get a day-by-day India itinerary with a cost estimate, suggested hotels and tour packages."],
+  "/about": [pageTitle("About Us"), "Learn about Incredible India Tours - your trusted partner for hotels, tour packages, and unforgettable journeys across India."],
+  "/faq": [pageTitle("Frequently Asked Questions"), "Answers to common questions about traveling in India, visas, best time to visit, and booking with us."],
+  "/contact": [pageTitle("Contact Us"), "Get in touch with Incredible India Travel for help with hotels, tour packages and custom trips across India."],
+};
+const DETAIL_PATH = /^\/(hotels|packages|destinations|blog)\/([^/]+)$/;
+
+const resolvePageMeta = async (base, path) => {
+  if (STATIC_META[path]) {
+    const [title, description] = STATIC_META[path];
+    return { title, description, url: `${base}${path}`, image: `${base}${DEFAULT_IMAGE}` };
+  }
+  const match = DETAIL_PATH.exec(path);
+  return match ? buildItemMeta(base, match[1], match[2]) : null;
+};
+
+const TAG_END = '(?:\\s[^>]*)?>';
+const setTag = (html, pattern, tag) => (pattern.test(html) ? html.replace(pattern, () => tag) : html.replace("</head>", () => `    ${tag}\n  </head>`));
+
+/** Puts one page's tags into the frontend's index.html. Exported for tests. */
+const injectMeta = (html, meta) => {
+  const e = escapeHtml;
+  const metaTag = (attr, key, value) => [new RegExp(`<meta\\s+${attr}="${key}"${TAG_END}`, "i"), `<meta ${attr}="${key}" content="${e(value)}" />`];
+  let out = html.replace(/<title>[\s\S]*?<\/title>/i, () => `<title>${e(meta.title)}</title>`);
+  const tags = [
+    metaTag("name", "description", meta.description),
+    metaTag("property", "og:title", meta.title),
+    metaTag("property", "og:description", meta.description),
+    metaTag("property", "og:url", meta.url),
+    metaTag("property", "og:type", meta.ogType || "website"),
+    metaTag("property", "og:image", meta.image),
+    metaTag("name", "twitter:title", meta.title),
+    metaTag("name", "twitter:description", meta.description),
+    metaTag("name", "twitter:image", meta.image),
+    [new RegExp(`<link\\s+rel="canonical"${TAG_END}`, "i"), `<link rel="canonical" href="${e(meta.url)}" />`],
+  ];
+  for (const [pattern, tag] of tags) out = setTag(out, pattern, tag);
+  return out;
+};
+
+// index.html of the built frontend, cached for a minute; the last good copy is kept in case the frontend host hiccups.
+let lastGoodTemplate = null;
+const getTemplate = async () => {
+  const cached = cache.get("seo:template");
+  if (cached) return cached;
+  try {
+    const response = await fetch(`${env.FRONTEND_INTERNAL_URL.replace(/\/+$/, "")}/index.html`, { signal: AbortSignal.timeout(5000) });
+    const text = response.ok ? await response.text() : "";
+    if (!text.includes('id="root"')) throw new Error(`unexpected index.html (status ${response.status})`);
+    lastGoodTemplate = text;
+    cache.set("seo:template", text, 60);
+    return text;
+  } catch (err) {
+    if (lastGoodTemplate) return lastGoodTemplate;
+    throw err;
+  }
+};
+const resetTemplateCache = () => {
+  lastGoodTemplate = null;
+};
+
+// @desc    The frontend's index.html with this page's own <head> tags
+// @route   GET /api/seo/page?path=/hotels/taj-lake-palace
+// @access  Public (mounted before the API rate limiter: every page view of the site passes through here)
+const getPage = asyncHandler(async (req, res) => {
+  const base = env.FRONTEND_URL.replace(/\/+$/, "");
+  let path = typeof req.query.path === "string" ? req.query.path.split(/[?#]/)[0] : "/";
+  try {
+    path = decodeURIComponent(path);
+  } catch {
+    path = "/";
+  }
+  path = `/${path.replace(/^\/+|\/+$/g, "")}`;
+
+  let template;
+  try {
+    template = await getTemplate();
+  } catch (err) {
+    return res.status(502).type("text/plain").send("Frontend temporarily unavailable");
+  }
+
+  const cacheKey = `seo:page:${path}`;
+  let html = cache.get(cacheKey);
+  if (!html) {
+    const meta = await resolvePageMeta(base, path);
+    html = meta ? injectMeta(template, meta) : template; // unknown page: the plain app, which shows its own 404
+    if (meta) cache.set(cacheKey, html, 60);
+  }
+
+  // This is the website's own HTML, not an API response: drop the API's strict security headers
+  // (their Content-Security-Policy would block the site's fonts, Google sign-in, images and API calls).
+  ["Content-Security-Policy", "Cross-Origin-Opener-Policy", "Cross-Origin-Embedder-Policy", "Cross-Origin-Resource-Policy", "Origin-Agent-Cluster"].forEach((h) => res.removeHeader(h));
+  res.set("Content-Type", "text/html; charset=utf-8");
+  res.set("Cache-Control", "public, max-age=0, s-maxage=60, must-revalidate");
+  res.status(200).send(html);
+});
+
+module.exports = { getSitemap, getSharePage, getPage, injectMeta, resetTemplateCache, buildSitemap, escapeXml };

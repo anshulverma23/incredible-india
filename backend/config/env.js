@@ -18,6 +18,8 @@ const env = {
 
   // Comma separated list, e.g. "https://app.example.com,https://www.example.com"
   FRONTEND_URL: (process.env.FRONTEND_URL || "http://localhost:5173").split(",")[0].trim(),
+  // Where the backend can fetch the built frontend's index.html from (Docker: http://frontend:80). Defaults to FRONTEND_URL.
+  FRONTEND_INTERNAL_URL: (process.env.FRONTEND_INTERNAL_URL || process.env.FRONTEND_URL || "http://localhost:5173").split(",")[0].trim(),
   CORS_ORIGINS: (process.env.FRONTEND_URL || "http://localhost:5173")
     .split(",")
     .map((s) => s.trim())

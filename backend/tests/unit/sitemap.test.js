@@ -6,7 +6,7 @@ const Package = require("../../models/package.model");
 const Blog = require("../../models/blog.model");
 const cache = require("../../utils/cache");
 const { env } = require("../../config/env");
-const { escapeXml } = require("../../controllers/seo.controller");
+const { escapeXml, resetTemplateCache } = require("../../controllers/seo.controller");
 const { chain } = require("../api/helpers");
 
 beforeEach(() => cache.clear());
@@ -104,5 +104,73 @@ describe("GET /api/seo/share/:type/:slug (social crawlers)", () => {
     const res = await request(app).get("/api/seo/share/blog/a-trip");
     expect(res.text).not.toContain("<b>bold</b>");
     expect(res.text).toContain("&lt;b&gt;bold&lt;/b&gt;");
+  });
+});
+
+describe("GET /api/seo/page (real <head> in the HTML source)", () => {
+  const TEMPLATE = `<!doctype html><html><head>
+    <meta name="description" content="default" />
+    <meta property="og:title" content="Incredible India Travel" />
+    <meta property="og:url" content="/" />
+    <meta property="og:image" content="/images/og-default.jpg" />
+    <meta name="twitter:title" content="Incredible India Travel" />
+    <title>Incredible India Travel</title>
+    <script type="module" src="/assets/index-abc.js"></script>
+  </head><body><div id="root"></div></body></html>`;
+  const mockFrontend = (ok = true) =>
+    jest.spyOn(global, "fetch").mockResolvedValue({ ok, status: ok ? 200 : 500, text: async () => (ok ? TEMPLATE : "") });
+
+  beforeEach(() => resetTemplateCache());
+
+  test("hotel page gets its own title, description, canonical and photo; the app scripts are untouched", async () => {
+    mockFrontend();
+    jest.spyOn(Hotel, "findOne").mockReturnValue(
+      chain({ name: "Taj Lake Palace", slug: "taj-lake-palace", description: "A floating palace.", images: [{ url: "https://res.cloudinary.com/x/taj.jpg" }], location: { city: "Udaipur" } })
+    );
+    const res = await request(app).get("/api/seo/page").query({ path: "/hotels/taj-lake-palace" });
+
+    expect(res.status).toBe(200);
+    expect(res.text).toContain("<title>Taj Lake Palace, Udaipur | Incredible India Travel</title>");
+    expect(res.text).toContain('<meta name="description" content="A floating palace." />');
+    expect(res.text).toContain('<meta property="og:image" content="https://res.cloudinary.com/x/taj.jpg" />');
+    expect(res.text).toContain('<link rel="canonical" href="' + env.FRONTEND_URL.replace(/\/+$/, "") + '/hotels/taj-lake-palace" />');
+    expect(res.text).toContain('<meta property="og:type" content="website" />'); // tag was missing in the template: added
+    expect(res.text).toContain('<script type="module" src="/assets/index-abc.js"></script>');
+    expect(res.text).toContain('<div id="root"></div>');
+    expect(res.text).not.toContain("<title>Incredible India Travel</title>");
+  });
+
+  test("static pages (about, hotels list...) get their own title too", async () => {
+    mockFrontend();
+    const res = await request(app).get("/api/seo/page").query({ path: "/about/" });
+    expect(res.text).toContain("<title>About Us | Incredible India Travel</title>");
+  });
+
+  test("does not send the API's Content-Security-Policy (it would break the site)", async () => {
+    mockFrontend();
+    const res = await request(app).get("/api/seo/page").query({ path: "/faq" });
+    expect(res.headers["content-security-policy"]).toBeUndefined();
+    expect(res.headers["content-type"]).toMatch(/text\/html/);
+  });
+
+  test("unknown item or page returns the plain app instead of an error", async () => {
+    mockFrontend();
+    jest.spyOn(Hotel, "findOne").mockReturnValue(chain(null));
+    const res = await request(app).get("/api/seo/page").query({ path: "/hotels/does-not-exist" });
+    expect(res.status).toBe(200);
+    expect(res.text).toContain("<title>Incredible India Travel</title>");
+  });
+
+  test("injected text is HTML-escaped", async () => {
+    mockFrontend();
+    jest.spyOn(Blog, "findOne").mockReturnValue(chain({ title: 'x"><script>alert(1)</script>', slug: "evil", excerpt: "e", image: "" }));
+    const res = await request(app).get("/api/seo/page").query({ path: "/blog/evil" });
+    expect(res.text).not.toContain("<script>alert(1)</script>");
+  });
+
+  test("502 when the frontend cannot be reached and nothing is cached", async () => {
+    jest.spyOn(global, "fetch").mockRejectedValue(new Error("down"));
+    const res = await request(app).get("/api/seo/page").query({ path: "/faq" });
+    expect(res.status).toBe(502);
   });
 });

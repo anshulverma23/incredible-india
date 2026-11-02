@@ -6,47 +6,51 @@
     },
     {
       "source": "/hotels/:slug",
-      "has": [
-        {
-          "type": "header",
-          "key": "user-agent",
-          "value": "(?i).*(facebookexternalhit|facebot|whatsapp|twitterbot|linkedinbot|slackbot|telegrambot|pinterest|discordbot|skypeuripreview).*"
-        }
-      ],
-      "destination": "https://YOUR-BACKEND-URL/api/seo/share/hotels/:slug"
+      "destination": "https://YOUR-BACKEND-URL/api/seo/page?path=/hotels/:slug"
     },
     {
       "source": "/packages/:slug",
-      "has": [
-        {
-          "type": "header",
-          "key": "user-agent",
-          "value": "(?i).*(facebookexternalhit|facebot|whatsapp|twitterbot|linkedinbot|slackbot|telegrambot|pinterest|discordbot|skypeuripreview).*"
-        }
-      ],
-      "destination": "https://YOUR-BACKEND-URL/api/seo/share/packages/:slug"
+      "destination": "https://YOUR-BACKEND-URL/api/seo/page?path=/packages/:slug"
     },
     {
       "source": "/destinations/:slug",
-      "has": [
-        {
-          "type": "header",
-          "key": "user-agent",
-          "value": "(?i).*(facebookexternalhit|facebot|whatsapp|twitterbot|linkedinbot|slackbot|telegrambot|pinterest|discordbot|skypeuripreview).*"
-        }
-      ],
-      "destination": "https://YOUR-BACKEND-URL/api/seo/share/destinations/:slug"
+      "destination": "https://YOUR-BACKEND-URL/api/seo/page?path=/destinations/:slug"
     },
     {
       "source": "/blog/:slug",
-      "has": [
-        {
-          "type": "header",
-          "key": "user-agent",
-          "value": "(?i).*(facebookexternalhit|facebot|whatsapp|twitterbot|linkedinbot|slackbot|telegrambot|pinterest|discordbot|skypeuripreview).*"
-        }
-      ],
-      "destination": "https://YOUR-BACKEND-URL/api/seo/share/blog/:slug"
+      "destination": "https://YOUR-BACKEND-URL/api/seo/page?path=/blog/:slug"
+    },
+    {
+      "source": "/hotels",
+      "destination": "https://YOUR-BACKEND-URL/api/seo/page?path=/hotels"
+    },
+    {
+      "source": "/packages",
+      "destination": "https://YOUR-BACKEND-URL/api/seo/page?path=/packages"
+    },
+    {
+      "source": "/destinations",
+      "destination": "https://YOUR-BACKEND-URL/api/seo/page?path=/destinations"
+    },
+    {
+      "source": "/blog",
+      "destination": "https://YOUR-BACKEND-URL/api/seo/page?path=/blog"
+    },
+    {
+      "source": "/about",
+      "destination": "https://YOUR-BACKEND-URL/api/seo/page?path=/about"
+    },
+    {
+      "source": "/faq",
+      "destination": "https://YOUR-BACKEND-URL/api/seo/page?path=/faq"
+    },
+    {
+      "source": "/contact",
+      "destination": "https://YOUR-BACKEND-URL/api/seo/page?path=/contact"
+    },
+    {
+      "source": "/plan-trip",
+      "destination": "https://YOUR-BACKEND-URL/api/seo/page?path=/plan-trip"
     },
     {
       "source": "/(.*)",

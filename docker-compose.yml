@@ -27,6 +27,7 @@ services:
       PORT: 8000
       MONGO_URI: mongodb://mongo:27017/india-travel
       FRONTEND_URL: http://localhost:5173
+      FRONTEND_INTERNAL_URL: http://frontend:80 # backend fetches the built index.html from here (per-page <title>/meta tags)
       LOG_TO_FILES: "false" # container logs go to stdout (docker logs)
     ports:
       - "8000:8000"
