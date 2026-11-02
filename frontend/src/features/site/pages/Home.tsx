@@ -1,3 +1,4 @@
+import { travelAgencyJsonLd } from "@/lib/seo"
 import { PageMeta } from "@/components/common/page-meta"
 import { Hero } from "@/features/site/components/hero"
 import { Destinations } from "@/features/site/components/destinations"
@@ -11,7 +12,7 @@ import { CTA } from "@/features/site/components/cta"
 export default function Page() {
   return (
     <main>
-      <PageMeta title="Incredible India Travel - Hotels, Tour Packages & Destinations in India" description="Book hand-picked hotels, tour packages and destinations across India. Plan your trip with our free itinerary planner and book online." canonical="/" />
+      <PageMeta title="Incredible India Travel - Hotels, Tour Packages & Destinations in India" description="Book hand-picked hotels, tour packages and destinations across India. Plan your trip with our free itinerary planner and book online." canonical="/" jsonLd={travelAgencyJsonLd()} />
       <Hero />
       <Destinations />
       <FeaturedHotels />

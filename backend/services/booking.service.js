@@ -5,6 +5,7 @@ const Package = require("../models/package.model");
 const Coupon = require("../models/coupon.model");
 const CouponUsage = require("../models/couponUsage.model");
 const Payment = require("../models/payment.model");
+const PackageEnquiry = require("../models/packageEnquiry.model");
 const User = require("../models/user.model");
 const { env } = require("../config/env");
 const { LIMITS, CANCELLATION_TIERS, HOTEL_REQUEST } = require("../config/policy");
@@ -44,12 +45,15 @@ const daysUntilStart = (booking) => {
 /** Pure: which cancellation tier applies for a given number of days before the trip. */
 const refundPercentFor = (daysBefore) => (CANCELLATION_TIERS.find((t) => daysBefore >= t.minDaysBefore) || { refundPercent: 0 }).refundPercent;
 
+/** Money actually received for a booking (an advance plan may have received only part of the total so far). */
+const amountPaidOf = (booking) => (booking.paymentPlan?.mode === "advance" ? booking.amountPaid || 0 : booking.pricing.totalAmount);
+
 /** What would the customer get back if they cancelled right now? (shown in the UI before confirming) */
 const previewRefund = (booking) => {
-  if (booking.paymentStatus !== "paid") return { refundPercent: 0, refundAmount: 0, paid: false };
+  if (!["paid", "partially_paid"].includes(booking.paymentStatus)) return { refundPercent: 0, refundAmount: 0, paid: false };
   const days = daysUntilStart(booking);
   const refundPercent = refundPercentFor(days);
-  return { refundPercent, refundAmount: Math.round((booking.pricing.totalAmount * refundPercent) / 100), paid: true, daysBeforeStart: Math.floor(days) };
+  return { refundPercent, refundAmount: Math.round((amountPaidOf(booking) * refundPercent) / 100), paid: true, daysBeforeStart: Math.floor(days) };
 };
 
 /* ------------------------------------------------------------------ */
@@ -234,6 +238,7 @@ const applyCouponToBooking = async (bookingId, user, couponCode) => {
   const booking = await Booking.findById(bookingId);
   if (!booking) throw httpError(404, "Booking not found");
   if (String(booking.user) !== String(user._id)) throw httpError(403, "Not authorized for this booking");
+  if (booking.enquiry) throw httpError(400, "Coupons cannot be applied to a negotiated quotation - the agreed price is already final");
   if (booking.bookingStatus !== "pending" || booking.paymentStatus === "paid") throw httpError(400, "Coupon can only be changed on an unpaid, pending booking");
   if (booking.expiresAt && booking.expiresAt < new Date()) throw httpError(409, "This booking has expired");
 
@@ -267,19 +272,25 @@ const cancelBooking = async (bookingId, actor, { reason, refundPercent: override
   const wasRequestStage = booking.bookingType === "hotel" && REQUEST_STAGES.includes(booking.bookingStatus);
 
   let refund = { amount: 0, percent: 0 };
-  const wasPaid = booking.paymentStatus === "paid";
+  const wasPaid = ["paid", "partially_paid"].includes(booking.paymentStatus);
 
   if (wasPaid) {
     const preview = previewRefund(booking);
     const percent = isAdmin && override !== undefined ? Math.min(100, Math.max(0, Number(override))) : preview.refundPercent;
-    const amount = Math.round((booking.pricing.totalAmount * percent) / 100);
+    const paidTotal = amountPaidOf(booking);
+    const amount = Math.round((paidTotal * percent) / 100);
     refund = { amount, percent };
 
     if (amount > 0) {
-      const payment = await Payment.findById(booking.payment);
-      if (!payment) throw httpError(500, "Payment record missing - contact support");
-      await paymentService.refundPayment(payment, amount, reason || "Booking cancelled", actor._id);
-      booking.paymentStatus = amount >= booking.pricing.totalAmount ? "refunded" : "partially_refunded";
+      if (booking.paymentPlan?.mode === "advance") {
+        // advance + balance are two gateway payments: refund across both (newest first)
+        await paymentService.refundBookingAmount(booking, amount, reason || "Booking cancelled", actor._id);
+      } else {
+        const payment = await Payment.findById(booking.payment);
+        if (!payment) throw httpError(500, "Payment record missing - contact support");
+        await paymentService.refundPayment(payment, amount, reason || "Booking cancelled", actor._id);
+      }
+      booking.paymentStatus = amount >= paidTotal ? "refunded" : "partially_refunded";
     }
   }
 
@@ -287,6 +298,14 @@ const cancelBooking = async (bookingId, actor, { reason, refundPercent: override
   booking.expiresAt = undefined;
   booking.setStatus(refund.amount > 0 ? "refunded" : "cancelled", { by: actor._id, note: reason || "Cancelled" });
   await booking.save();
+
+  // Custom quotation booking cancelled -> the enquiry is closed too (a new enquiry/quotation is needed to travel).
+  if (booking.enquiry) {
+    await PackageEnquiry.updateOne(
+      { _id: booking.enquiry, status: { $in: ["accepted", "booked"] } },
+      { $set: { status: "cancelled", lastActivityAt: new Date() }, $push: { statusHistory: { status: "cancelled", at: new Date(), by: actor._id, note: reason || "Booking cancelled" } } }
+    );
+  }
 
   // A fully refunded booking releases its coupon redemption so the customer can use it again.
   if (booking.coupon && refund.percent === 100) {
@@ -461,6 +480,34 @@ const expireStaleBookings = async () => {
   return expired;
 };
 
+/**
+ * Advance plan: remind customers whose balance is due within 3 days (or already overdue). Once per booking,
+ * claimed atomically so two instances never send it twice.
+ */
+const sendBalanceReminders = async () => {
+  const soon = new Date(Date.now() + 3 * MS_PER_DAY);
+  const due = await Booking.find({
+    bookingStatus: "confirmed",
+    paymentStatus: "partially_paid",
+    "paymentPlan.mode": "advance",
+    "paymentPlan.balanceDueDate": { $lte: soon },
+    balanceReminderSent: { $ne: true },
+  })
+    .limit(200)
+    .populate("user", "name email")
+    .populate("package", "name");
+
+  let sent = 0;
+  for (const b of due) {
+    const claimed = await Booking.updateOne({ _id: b._id, balanceReminderSent: { $ne: true } }, { $set: { balanceReminderSent: true } });
+    if (!claimed.modifiedCount) continue;
+    sent++;
+    await notify(b.user._id, { type: "payment_due", title: "Balance payment due", message: `Please pay the balance of Rs. ${b.paymentPlan.balanceAmount} for booking ${b.bookingReference} before ${b.paymentPlan.balanceDueDate.toISOString().slice(0, 10)}.`, link: `/checkout/${b._id}`, booking: b._id });
+    queueEmail({ to: b.user.email, subject: `Balance payment due - ${b.bookingReference}`, html: emailTemplates.balanceDueReminder(b.user.name, b) });
+  }
+  return sent;
+};
+
 /** Confirmed bookings whose trip has ended become "completed" (this is what unlocks reviews). */
 const completeFinishedBookings = async () => {
   const due = await Booking.find({ bookingStatus: "confirmed", endDate: { $lt: todayIST() } }).limit(500);
@@ -509,5 +556,6 @@ module.exports = {
   expireStaleBookings,
   completeFinishedBookings,
   sendTripReminders,
+  sendBalanceReminders,
   todayIST,
 };

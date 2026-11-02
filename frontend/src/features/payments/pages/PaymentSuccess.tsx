@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { PageLoader } from "@/components/ui/spinner"
 import { formatINR } from "@/lib/utils"
+import { formatDate } from "@/lib/utils"
 import { bookingApi } from "@/features/bookings/api/booking.api"
 import type { Booking } from "@/features/bookings/types"
 
@@ -16,7 +17,9 @@ export default function PaymentSuccessPage() {
   const [loading, setLoading] = useState(true)
   const [polls, setPolls] = useState(0)
 
-  const confirmed = booking?.paymentStatus === "paid"
+  // An advance plan is "confirmed" as soon as the advance is in (the booking itself is confirmed); the balance comes later.
+  const advanceOnly = booking?.paymentStatus === "partially_paid" && booking.bookingStatus === "confirmed"
+  const confirmed = booking?.paymentStatus === "paid" || advanceOnly
 
   // The customer may land here a moment before the server has confirmed the payment (webhook race) - keep checking.
   useEffect(() => {
@@ -51,7 +54,9 @@ export default function PaymentSuccessPage() {
           <>
             <CheckCircle2 className="mx-auto mb-4 size-14 text-primary" />
             <h1 className="font-serif text-2xl font-bold text-foreground">Booking Confirmed!</h1>
-            <p className="mt-2 text-sm text-muted-foreground">Your payment was successful. Your invoice and confirmation are on their way to your email.</p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {advanceOnly ? "Your advance payment was successful and your trip is booked." : "Your payment was successful."} Your invoice and confirmation are on their way to your email.
+            </p>
           </>
         ) : (
           <>
@@ -68,7 +73,10 @@ export default function PaymentSuccessPage() {
         {booking && (
           <div className="mt-6 rounded-lg bg-muted p-4 text-left text-sm">
             <div className="flex justify-between"><span className="text-muted-foreground">Booking ID</span><span className="font-medium">{booking.bookingReference}</span></div>
-            <div className="mt-1 flex justify-between"><span className="text-muted-foreground">{confirmed ? "Amount Paid" : "Amount"}</span><span className="font-medium">{formatINR(booking.pricing.totalAmount)}</span></div>
+            <div className="mt-1 flex justify-between"><span className="text-muted-foreground">{confirmed ? "Amount Paid" : "Amount"}</span><span className="font-medium">{formatINR(confirmed && booking.paymentPlan?.mode === "advance" ? (booking.amountPaid ?? 0) : booking.pricing.totalAmount)}</span></div>
+            {advanceOnly && booking.paymentPlan && (
+              <div className="mt-1 flex justify-between"><span className="text-muted-foreground">Balance due{booking.paymentPlan.balanceDueDate ? ` by ${formatDate(booking.paymentPlan.balanceDueDate)}` : ""}</span><span className="font-medium">{formatINR(booking.paymentPlan.balanceAmount ?? 0)}</span></div>
+            )}
           </div>
         )}
 
@@ -78,7 +86,10 @@ export default function PaymentSuccessPage() {
               <Download className="mr-2 size-4" /> Download Invoice
             </Button>
           )}
-          <Button className="bg-primary text-primary-foreground hover:bg-primary/90" render={<Link to={booking ? `/bookings/${booking._id}` : "/bookings"} />}>
+          {booking && advanceOnly && (
+            <Button className="bg-primary text-primary-foreground hover:bg-primary/90" render={<Link to={`/checkout/${booking._id}`} />}>Pay balance now</Button>
+          )}
+          <Button variant={advanceOnly ? "outline" : "default"} className={advanceOnly ? "" : "bg-primary text-primary-foreground hover:bg-primary/90"} render={<Link to={booking ? `/bookings/${booking._id}` : "/bookings"} />}>
             View Booking
           </Button>
         </div>

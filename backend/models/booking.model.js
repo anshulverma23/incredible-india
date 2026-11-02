@@ -5,7 +5,8 @@ const { generateBookingReference } = require("../utils/bookingRef");
 //                      (or "declined" when the hotel cannot host the stay)
 // Packages skip the first two steps and start at "pending" (awaiting payment).
 const BOOKING_STATUSES = ["pending_confirmation", "awaiting_approval", "pending", "confirmed", "cancelled", "failed", "refunded", "completed", "expired", "declined"];
-const PAYMENT_STATUSES = ["pending", "paid", "failed", "refunded", "partially_refunded"];
+// "partially_paid" = advance received, balance still due (package quotations with an advance plan).
+const PAYMENT_STATUSES = ["pending", "paid", "partially_paid", "failed", "refunded", "partially_refunded"];
 
 // Statuses that still occupy inventory (rooms / package seats). Everything else frees the slot.
 // A "pending" booking only holds inventory until `expiresAt`.
@@ -76,6 +77,20 @@ const bookingSchema = new mongoose.Schema(
     approvedAt: Date, // customer accepted the final price -> payment window starts here
     declineReason: { type: String, maxlength: 500 },
     adminNotes: { type: [adminNoteSchema], default: [], select: false },
+
+    // Custom package booking created from an accepted quotation (see PackageEnquiry).
+    enquiry: { type: mongoose.Schema.Types.ObjectId, ref: "PackageEnquiry", index: true, sparse: true },
+    // "full": one payment of pricing.totalAmount. "advance": advance now, balance before the trip.
+    paymentPlan: {
+      mode: { type: String, enum: ["full", "advance"], default: "full" },
+      advancePercent: Number,
+      advanceAmount: Number,
+      balanceAmount: Number,
+      balanceDueDate: Date,
+      balancePaidAt: Date,
+    },
+    amountPaid: { type: Number, default: 0, min: 0 }, // total received so far (all payments)
+    balanceReminderSent: { type: Boolean, default: false },
 
     payment: { type: mongoose.Schema.Types.ObjectId, ref: "Payment" },
     paymentStatus: { type: String, enum: PAYMENT_STATUSES, default: "pending", index: true },

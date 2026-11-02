@@ -35,6 +35,8 @@ const Dashboard = lazy(() => import("@/features/profile/pages/Dashboard"))
 const Profile = lazy(() => import("@/features/profile/pages/Profile"))
 const Wishlist = lazy(() => import("@/features/wishlist/pages/Wishlist"))
 const Bookings = lazy(() => import("@/features/bookings/pages/Bookings"))
+const Enquiries = lazy(() => import("@/features/enquiries/pages/Enquiries"))
+const EnquiryDetail = lazy(() => import("@/features/enquiries/pages/EnquiryDetail"))
 const BookingDetail = lazy(() => import("@/features/bookings/pages/BookingDetail"))
 const Checkout = lazy(() => import("@/features/payments/pages/Checkout"))
 const PaymentSuccess = lazy(() => import("@/features/payments/pages/PaymentSuccess"))
@@ -58,6 +60,8 @@ const AdminSettings = lazy(() => import("@/features/admin/pages/AdminSettings"))
 const AdminBlog = lazy(() => import("@/features/admin/pages/AdminBlog"))
 const AdminFaq = lazy(() => import("@/features/admin/pages/AdminFaq"))
 const AdminPayments = lazy(() => import("@/features/admin/pages/AdminPayments"))
+const AdminEnquiries = lazy(() => import("@/features/admin/pages/AdminEnquiries"))
+const AdminEnquiryDetail = lazy(() => import("@/features/admin/pages/AdminEnquiryDetail"))
 
 /** Suspense boundary for a lazily loaded page. */
 function LazyRoute({ Component }: { Component: ComponentType }) {
@@ -124,6 +128,8 @@ export const router = createBrowserRouter([
           { path: "notifications", element: page(Notifications) },
           { path: "bookings", element: page(Bookings) },
           { path: "bookings/:id", element: page(BookingDetail) },
+          { path: "enquiries", element: page(Enquiries) },
+          { path: "enquiries/:id", element: page(EnquiryDetail) },
           { path: "checkout/:bookingId", element: page(Checkout) },
           { path: "payment-success/:bookingId", element: page(PaymentSuccess) },
         ],
@@ -140,6 +146,8 @@ export const router = createBrowserRouter([
           { path: "destinations", element: page(AdminDestinations) },
           { path: "packages", element: page(AdminPackages) },
           { path: "bookings", element: page(AdminBookings) },
+          { path: "enquiries", element: page(AdminEnquiries) },
+          { path: "enquiries/:id", element: page(AdminEnquiryDetail) },
           { path: "reviews", element: page(AdminReviews) },
           { path: "coupons", element: page(AdminCoupons) },
           { path: "reports", element: page(AdminReports) },

@@ -77,12 +77,20 @@ const buildInvoice = (booking, payment, target) => {
   doc.moveTo(300, y).lineTo(right, y).strokeColor("#999").stroke();
   y += 8;
   doc.font("Helvetica-Bold").fontSize(13).fillColor("#000").text("Total", 300, y).text(inr(booking.pricing.totalAmount), 300, y, { width: right - 300, align: "right" });
-  y += 40;
+  y += 22;
+  if (booking.paymentPlan?.mode === "advance") {
+    const paid = booking.amountPaid || 0;
+    for (const [k, v] of [["Amount paid", inr(paid)], ["Balance due", inr(Math.max(0, booking.pricing.totalAmount - paid))]]) {
+      doc.font("Helvetica").fontSize(10).fillColor("#333").text(k, 300, y).text(v, 300, y, { width: right - 300, align: "right" });
+      y += 18;
+    }
+  }
+  y += 18;
 
   // ---- Payment status stamp ----
   const color = isPaid ? "#1a7f37" : "#b45309";
   doc.save().roundedRect(left, y, 150, 36, 6).lineWidth(2).strokeColor(color).stroke();
-  doc.fillColor(color).font("Helvetica-Bold").fontSize(16).text(isPaid ? "PAID" : String(booking.paymentStatus).toUpperCase(), left, y + 10, { width: 150, align: "center" });
+  doc.fillColor(color).font("Helvetica-Bold").fontSize(16).text(isPaid ? "PAID" : String(booking.paymentStatus).replace("_", " ").toUpperCase(), left, y + 10, { width: 150, align: "center" });
   doc.restore();
 
   doc.fillColor("#888").font("Helvetica").fontSize(8).text("This is a computer-generated invoice and does not require a signature.", left, 770, { align: "center", width: right - left });

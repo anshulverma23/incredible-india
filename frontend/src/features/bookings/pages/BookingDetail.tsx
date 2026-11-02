@@ -9,7 +9,7 @@ import { PageLoader } from "@/components/ui/spinner"
 import { useToast } from "@/hooks/useToast"
 import { formatDate, formatINR } from "@/lib/utils"
 import { bookingApi } from "@/features/bookings/api/booking.api"
-import { BOOKING_STATUS_LABEL, BOOKING_STATUS_STYLES, PAYMENT_STATUS_LABEL, canApprovePrice, isPayable } from "@/features/bookings/lib/status"
+import { BOOKING_STATUS_LABEL, BOOKING_STATUS_STYLES, PAYMENT_STATUS_LABEL, canApprovePrice, isBalanceDue, isPayable } from "@/features/bookings/lib/status"
 import { ApiError } from "@/lib/axios"
 import type { Booking, BookingStatus, RefundPreview } from "@/features/bookings/types"
 import type { Hotel, Room } from "@/features/hotels/types"
@@ -145,7 +145,7 @@ export default function BookingDetailPage() {
   const isRequestStage = booking.bookingStatus === "pending_confirmation" || booking.bookingStatus === "awaiting_approval"
   const canCancel = isRequestStage || booking.bookingStatus === "pending" || booking.bookingStatus === "confirmed"
   const fmtDateTime = (d?: string) => (d ? new Date(d).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : "")
-  const hasInvoice = ["paid", "partially_refunded", "refunded"].includes(booking.paymentStatus)
+  const hasInvoice = ["paid", "partially_paid", "partially_refunded", "refunded"].includes(booking.paymentStatus)
 
   return (
     <main className="min-h-screen bg-muted/20 pb-20 pt-28">
@@ -205,6 +205,20 @@ export default function BookingDetailPage() {
             </Alert>
           )}
 
+          {isBalanceDue(booking) && booking.paymentPlan && (
+            <Alert className="mt-4 items-center justify-between gap-3">
+              <span>
+                Advance of <strong>{formatINR(booking.amountPaid ?? 0)}</strong> received. Balance <strong>{formatINR(booking.paymentPlan.balanceAmount ?? 0)}</strong>
+                {booking.paymentPlan.balanceDueDate ? ` is due by ${formatDate(booking.paymentPlan.balanceDueDate)}` : " is due before your trip"}.
+              </span>
+              <Button size="sm" className="shrink-0 bg-primary text-primary-foreground hover:bg-primary/90" render={<Link to={`/checkout/${booking._id}`} />}>Pay balance</Button>
+            </Alert>
+          )}
+
+          {booking.enquiry && (
+            <p className="mt-3 text-xs text-muted-foreground">Custom package from your enquiry. <Link to={`/enquiries/${booking.enquiry}`} className="text-primary hover:underline">View quotation &amp; conversation</Link></p>
+          )}
+
           <BookingStepper booking={booking} />
 
           <div className="mt-6 grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
@@ -234,6 +248,9 @@ export default function BookingDetailPage() {
             {booking.pricing.discount > 0 && <div className="flex justify-between text-primary"><span>Discount{booking.couponCode ? ` (${booking.couponCode})` : ""}</span><span>-{formatINR(booking.pricing.discount)}</span></div>}
             <div className="flex justify-between text-muted-foreground"><span>Taxes</span><span>{formatINR(booking.pricing.tax)}</span></div>
             <div className="mt-2 flex justify-between border-t border-border pt-2 font-semibold text-foreground"><span>{booking.bookingStatus === "awaiting_approval" ? "Final price" : "Total"}</span><span>{formatINR(booking.pricing.totalAmount)}</span></div>
+            {booking.paymentPlan?.mode === "advance" && booking.paymentStatus === "partially_paid" && (
+              <div className="mt-1 flex justify-between text-xs text-muted-foreground"><span>Paid so far</span><span>{formatINR(booking.amountPaid ?? 0)}</span></div>
+            )}
           </div>
           )}
 

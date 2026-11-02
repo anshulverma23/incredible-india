@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom"
-import { Tag, ShieldCheck, Timer } from "lucide-react"
+import { Tag, ShieldCheck, Timer, Info } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,6 +13,7 @@ import { bookingApi } from "@/features/bookings/api/booking.api"
 import { paymentApi, type RazorpayResponse } from "@/features/payments/api/payment.api"
 import { formatCountdown, useCountdown } from "@/features/payments/hooks/useCountdown"
 import { ApiError } from "@/lib/axios"
+import { isBalanceDue } from "@/features/bookings/lib/status"
 import type { Booking } from "@/features/bookings/types"
 import type { Hotel, Room } from "@/features/hotels/types"
 import type { TourPackage } from "@/features/packages/types"
@@ -81,7 +82,7 @@ export default function CheckoutPage() {
         currency: order.currency,
         order_id: order.orderId,
         name: "India Travel",
-        description: `Booking ${booking.bookingReference}`,
+        description: `${isBalanceDue(booking) ? "Balance for booking" : "Booking"} ${booking.bookingReference}`,
         prefill: { name: user?.name, email: user?.email },
         theme: { color: "#1a5f4a" },
         // Called by Razorpay after the customer pays. NEVER treated as proof of payment - the server verifies it.
@@ -127,7 +128,13 @@ export default function CheckoutPage() {
     return <Navigate to={`/bookings/${booking._id}`} replace />
   }
 
-  if (booking.bookingStatus !== "pending" || holdExpired) {
+  // Advance plan: after the advance, the same page collects the balance (booking is already confirmed).
+  const plan = booking.paymentPlan
+  const isAdvancePlan = plan?.mode === "advance"
+  const isBalance = isBalanceDue(booking)
+  const amountDue = isBalance ? (plan?.balanceAmount ?? 0) : isAdvancePlan ? (plan?.advanceAmount ?? 0) : booking.pricing.totalAmount
+
+  if (!isBalance && (booking.bookingStatus !== "pending" || holdExpired)) {
     return (
       <main className="min-h-screen bg-muted/30 pb-20 pt-28">
         <div className="mx-auto max-w-md px-4">
@@ -154,14 +161,14 @@ export default function CheckoutPage() {
   return (
     <main className="min-h-screen bg-muted/30 pb-20 pt-28">
       <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
-        <h1 className="mb-2 font-serif text-3xl font-bold text-foreground">Checkout</h1>
+        <h1 className="mb-2 font-serif text-3xl font-bold text-foreground">{isBalance ? "Pay balance" : "Checkout"}</h1>
         <p className="mb-6 text-sm text-muted-foreground">Booking {booking.bookingReference}</p>
 
-        {secondsLeft !== null && (
+        {!isBalance && secondsLeft !== null && (
           <Alert variant={secondsLeft < 300 ? "destructive" : "default"} className="mb-6">
             <Timer className="mt-0.5 size-4 shrink-0" />
             <span>
-              Your seats are held for <strong className="tabular-nums">{formatCountdown(secondsLeft)}</strong>. Complete the payment before the timer ends.
+              {booking.enquiry ? "Your quotation booking is held for " : "Your seats are held for "}<strong className="tabular-nums">{formatCountdown(secondsLeft)}</strong>. Complete the payment before the timer ends.
             </span>
           </Alert>
         )}
@@ -187,6 +194,9 @@ export default function CheckoutPage() {
               {booking.guests.children > 0 && `, ${booking.guests.children} children`}
             </p>
 
+            {booking.enquiry || isBalance ? (
+              <p className="mt-6 flex items-start gap-2 border-t border-border pt-6 text-xs text-muted-foreground"><Info className="mt-0.5 size-4 shrink-0" /> {isBalance ? "This is the remaining balance of your booking." : "This is your negotiated price from the accepted quotation - coupons do not apply."}</p>
+            ) : (
             <div className="mt-6 border-t border-border pt-6">
               <h3 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-foreground"><Tag className="size-4" /> Have a coupon?</h3>
               <div className="flex gap-2">
@@ -197,6 +207,7 @@ export default function CheckoutPage() {
               </div>
               {couponMsg && <p className={`mt-2 text-xs ${couponMsg.error ? "text-destructive" : "text-primary"}`}>{couponMsg.text}</p>}
             </div>
+            )}
 
             <p className="mt-6 text-xs text-muted-foreground">
               Cancellation policy: 90% refund 7+ days before the trip, 50% for 3-6 days, no refund inside 3 days.
@@ -214,13 +225,25 @@ export default function CheckoutPage() {
               <div className="flex justify-between border-t border-border pt-2 text-base font-semibold text-foreground">
                 <span>Total</span><span>{formatINR(booking.pricing.totalAmount)}</span>
               </div>
+              {isAdvancePlan && !isBalance && (
+                <div className="space-y-1 rounded-md bg-muted p-2 text-xs text-muted-foreground">
+                  <div className="flex justify-between"><span>Pay now ({plan?.advancePercent}% advance)</span><span className="font-semibold text-foreground">{formatINR(plan?.advanceAmount ?? 0)}</span></div>
+                  <div className="flex justify-between"><span>Balance{plan?.balanceDueDate ? ` by ${formatDate(plan.balanceDueDate)}` : ""}</span><span>{formatINR(plan?.balanceAmount ?? 0)}</span></div>
+                </div>
+              )}
+              {isBalance && (
+                <div className="space-y-1 rounded-md bg-muted p-2 text-xs text-muted-foreground">
+                  <div className="flex justify-between"><span>Already paid</span><span>{formatINR(booking.amountPaid ?? 0)}</span></div>
+                  <div className="flex justify-between"><span>Balance to pay{plan?.balanceDueDate ? ` (due ${formatDate(plan.balanceDueDate)})` : ""}</span><span className="font-semibold text-foreground">{formatINR(plan?.balanceAmount ?? 0)}</span></div>
+                </div>
+              )}
             </div>
 
             {payError && <Alert variant="destructive" className="mt-4">{payError}</Alert>}
             {processing && <Alert className="mt-4">Confirming your payment with the bank...</Alert>}
 
             <Button onClick={handlePay} disabled={paying || processing} className="mt-6 w-full bg-primary py-5 text-primary-foreground hover:bg-primary/90">
-              {processing ? "Verifying..." : paying ? "Processing..." : `Pay ${formatINR(booking.pricing.totalAmount)}`}
+              {processing ? "Verifying..." : paying ? "Processing..." : `Pay ${formatINR(amountDue)}${isAdvancePlan && !isBalance ? " advance" : ""}`}
             </Button>
             <p className="mt-3 flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
               <ShieldCheck className="size-3.5" /> Secured by Razorpay

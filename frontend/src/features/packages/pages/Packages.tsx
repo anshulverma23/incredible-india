@@ -1,5 +1,6 @@
+import { packagePath } from "@/features/packages/lib/package-path"
 import { PageMeta } from "@/components/common/page-meta"
-import { pageTitle } from "@/lib/seo"
+import { crumbs, itemListJsonLd, pageTitle } from "@/lib/seo"
 import { useEffect, useState } from "react"
 import { useSearchParams } from "react-router-dom"
 import { SearchBar } from "@/components/common/search-bar"
@@ -57,7 +58,7 @@ export default function PackagesPage() {
 
   return (
     <main className="min-h-screen bg-background pb-20 pt-28">
-      <PageMeta title={pageTitle("India Tour Packages")} description="Explore India tour packages: adventure, luxury, family, honeymoon, pilgrimage and wildlife trips with day-wise itineraries, inclusions and prices." canonical="/packages" />
+      <PageMeta title={pageTitle("India Tour Packages")} description="Explore India tour packages: adventure, luxury, family, honeymoon, pilgrimage and wildlife trips with day-wise itineraries, inclusions and prices." canonical="/packages" jsonLd={[crumbs({ name: "Tour Packages", path: "/packages" }), ...(packages.length > 0 ? [itemListJsonLd("India tour packages", packages.map((p) => ({ name: p.name, path: packagePath(p) })))] : [])]} />
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
           <div>

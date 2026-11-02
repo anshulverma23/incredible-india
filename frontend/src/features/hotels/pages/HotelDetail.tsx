@@ -8,7 +8,7 @@ import { Select } from "@/components/ui/select"
 import { Alert } from "@/components/ui/alert"
 import { PageLoader } from "@/components/ui/spinner"
 import { PageMeta } from "@/components/common/page-meta"
-import { absoluteUrl, pageTitle, truncate } from "@/lib/seo"
+import { absoluteUrl, crumbs, pageTitle, truncate } from "@/lib/seo"
 import { StarRating } from "@/components/common/star-rating"
 import { WishlistButton } from "@/features/wishlist/components/wishlist-button"
 import { MapEmbed } from "@/components/common/map-embed"
@@ -113,7 +113,7 @@ export default function HotelDetailsPage() {
         description={truncate(hotel.description)}
         canonical={hotelPath(hotel)}
         image={hotel.images[0]?.url}
-        jsonLd={{
+        jsonLd={[{
           "@context": "https://schema.org",
           "@type": "Hotel",
           name: hotel.name,
@@ -129,7 +129,7 @@ export default function HotelDetailsPage() {
           },
           ...(hotel.location.coordinates?.lat && { geo: { "@type": "GeoCoordinates", latitude: hotel.location.coordinates.lat, longitude: hotel.location.coordinates.lng } }),
           ...(hotel.numReviews > 0 && { aggregateRating: { "@type": "AggregateRating", ratingValue: hotel.rating, reviewCount: hotel.numReviews } }),
-        }}
+        }, crumbs({ name: "Hotels", path: "/hotels" }, { name: hotel.name, path: hotelPath(hotel) })]}
       />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Gallery */}

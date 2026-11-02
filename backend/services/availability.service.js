@@ -46,7 +46,8 @@ const sameDayFilter = (date) => {
 
 /** Seats left on a package departure date. */
 const packageSeatsLeft = async (pkg, travelDate, { excludeId, beforeId } = {}) => {
-  const q = { package: pkg._id, travelDate: sameDayFilter(travelDate), ...Booking.activeHoldFilter() };
+  // Custom quotation bookings are private departures: they never use up seats of the public departure.
+  const q = { package: pkg._id, travelDate: sameDayFilter(travelDate), enquiry: { $exists: false }, ...Booking.activeHoldFilter() };
   if (excludeId) q._id = { $ne: excludeId };
   if (beforeId) q._id = { ...(q._id || {}), $lt: beforeId };
   const rows = await Booking.aggregate([{ $match: q }, { $group: { _id: null, adults: { $sum: "$guests.adults" }, children: { $sum: "$guests.children" } } }]);

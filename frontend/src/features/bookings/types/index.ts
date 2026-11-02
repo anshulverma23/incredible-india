@@ -18,7 +18,7 @@ export type BookingStatus =
   | "completed"
   | "expired"
   | "declined"
-export type PaymentStatus = "pending" | "paid" | "failed" | "refunded" | "partially_refunded"
+export type PaymentStatus = "pending" | "paid" | "partially_paid" | "failed" | "refunded" | "partially_refunded"
 
 export interface Booking {
   _id: string
@@ -50,6 +50,12 @@ export interface Booking {
   adminNotes?: { note: string; at: string; by?: string | { name: string } }[]
   statusHistory?: { status: BookingStatus; at: string; note?: string }[]
   cancellation?: { cancelledAt?: string; reason?: string; refundPercent?: number; refundAmount?: number }
+  /** Custom quotation booking (see /enquiries). */
+  enquiry?: string
+  /** "advance": pay part now and the balance before the trip. */
+  paymentPlan?: { mode: "full" | "advance"; advancePercent?: number; advanceAmount?: number; balanceAmount?: number; balanceDueDate?: string; balancePaidAt?: string }
+  /** Total received so far (advance plans). */
+  amountPaid?: number
   invoiceNumber: string
   confirmedAt?: string
   specialRequests?: string

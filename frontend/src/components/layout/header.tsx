@@ -7,6 +7,7 @@ import {
   User,
   LayoutDashboard,
   ClipboardList,
+  MessagesSquare,
   LogOut,
   ShieldCheck,
   ChevronDown,
@@ -131,6 +132,12 @@ export function Header() {
                     <ClipboardList className="w-4 h-4" /> My Bookings
                   </DropdownMenuItem>
                   <DropdownMenuItem
+                    render={<Link to="/enquiries" />}
+                    className="flex items-center gap-2 cursor-pointer"
+                  >
+                    <MessagesSquare className="w-4 h-4" /> My Enquiries
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
                     render={<Link to="/wishlist" />}
                     className="flex items-center gap-2 cursor-pointer"
                   >
@@ -218,6 +225,13 @@ export function Header() {
                     onClick={() => setIsMenuOpen(false)}
                   >
                     My Bookings
+                  </Link>
+                  <Link
+                    to="/enquiries"
+                    className="py-3 text-sm font-medium text-foreground"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    My Enquiries
                   </Link>
                   <Link
                     to="/wishlist"

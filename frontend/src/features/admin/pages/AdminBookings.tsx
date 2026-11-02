@@ -59,11 +59,11 @@ export default function AdminBookingsPage() {
 
   // Cancelling goes through the cancel endpoint so refunds, inventory release, emails and notifications all happen.
   const cancel = async (b: Booking) => {
-    const paid = b.paymentStatus === "paid"
+    const paid = b.paymentStatus === "paid" || b.paymentStatus === "partially_paid"
     let percent: number | undefined
     if (paid) {
       const answer = prompt(
-        `Cancel ${b.bookingReference} (paid ${formatINR(b.pricing.totalAmount)}).\n\nRefund percentage to give the customer?\nLeave empty to apply the standard cancellation policy (90% / 50% / 0%).`,
+        `Cancel ${b.bookingReference} (paid ${formatINR(b.paymentStatus === "partially_paid" ? (b.amountPaid ?? 0) : b.pricing.totalAmount)}).\n\nRefund percentage to give the customer?\nLeave empty to apply the standard cancellation policy (90% / 50% / 0%).`,
         "",
       )
       if (answer === null) return

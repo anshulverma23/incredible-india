@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/card"
 import { HotelCard } from "@/components/cards/hotel-card"
 import { PackageCard } from "@/components/cards/package-card"
 import { PageMeta } from "@/components/common/page-meta"
-import { absoluteUrl, pageTitle, truncate } from "@/lib/seo"
+import { absoluteUrl, crumbs, pageTitle, truncate } from "@/lib/seo"
 import { WishlistButton } from "@/features/wishlist/components/wishlist-button"
 import { destinationApi } from "@/features/destinations/api/destination.api"
 import { destinationPath, isObjectId } from "@/features/destinations/lib/destination-path"
@@ -86,7 +86,7 @@ export default function DestinationPage() {
         description={truncate(destination.description)}
         canonical={destinationPath(destination)}
         image={destination.gallery?.[0]?.url}
-        jsonLd={{
+        jsonLd={[{
           "@context": "https://schema.org",
           "@type": "TouristDestination",
           name: destination.name,
@@ -95,7 +95,7 @@ export default function DestinationPage() {
           ...(destination.gallery?.length > 0 && { image: destination.gallery.map((img) => img.url) }),
           ...(destination.tags?.length > 0 && { touristType: destination.tags }),
           ...(destination.coordinates?.lat && { geo: { "@type": "GeoCoordinates", latitude: destination.coordinates.lat, longitude: destination.coordinates.lng } }),
-        }}
+        }, crumbs({ name: "Destinations", path: "/destinations" }, { name: destination.name, path: destinationPath(destination) })]}
       />
       {/* Hero Section */}
       <section className="relative h-[60vh] md:h-[75vh] overflow-hidden">

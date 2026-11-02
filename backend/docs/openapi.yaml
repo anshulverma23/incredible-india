@@ -29,6 +29,7 @@ tags:
   - name: Coupons
   - name: Notifications
   - name: Itinerary
+  - name: Enquiries
   - name: Admin
 components:
   securitySchemes:
@@ -296,6 +297,38 @@ paths:
     get: { tags: [Admin], summary: "Stats + charts: users, bookings, revenue, pending/cancelled, popular destinations/packages, monthly revenue", responses: { "200": { description: OK } } }
   /admin/reports/revenue:
     get: { tags: [Admin], parameters: [{ name: months, in: query, schema: { type: integer } }], responses: { "200": { description: OK } } }
+  /enquiries:
+    post: { tags: [Enquiries], summary: "Customer: 'Discuss this package' - send an enquiry (dates, travellers, days, rooms, budget, requirements, contact method). One open enquiry per package.", requestBody: { required: true, content: { application/json: { schema: { type: object, required: [packageId, startDate, adults], properties: { packageId: { type: string }, startDate: { type: string, format: date }, adults: { type: integer }, children: { type: integer }, days: { type: integer }, rooms: { type: integer }, budgetAmount: { type: number }, budgetBasis: { type: string, enum: [per_person, total] }, requirements: { type: string }, contactMethod: { type: string, enum: [email, phone, whatsapp, chat] }, phone: { type: string } } } } } }, responses: { "201": { description: Enquiry created (status new) }, "409": { description: Open enquiry exists - details.enquiryId } } }
+  /enquiries/my:
+    get: { tags: [Enquiries], summary: Customer's own enquiries, responses: { "200": { description: OK } } }
+  /enquiries/{id}:
+    get: { tags: [Enquiries], summary: "Customer: one enquiry with conversation + quotation", parameters: [{ name: id, in: path, required: true, schema: { type: string } }], responses: { "200": { description: OK }, "404": { description: Not found (also for other people's enquiries) } } }
+  /enquiries/{id}/messages:
+    post: { tags: [Enquiries], summary: Customer message, parameters: [{ name: id, in: path, required: true, schema: { type: string } }], requestBody: { required: true, content: { application/json: { schema: { type: object, required: [text], properties: { text: { type: string, maxLength: 2000 } } } } } }, responses: { "201": { description: Sent } } }
+  /enquiries/{id}/accept:
+    put: { tags: [Enquiries], summary: "Customer accepts the quotation -> creates a package booking at exactly the quoted price (pay within 48h at /checkout/:bookingId). paymentOption advance is only valid when the quotation allows it.", parameters: [{ name: id, in: path, required: true, schema: { type: string } }], requestBody: { content: { application/json: { schema: { type: object, properties: { paymentOption: { type: string, enum: [full, advance] } } } } } }, responses: { "200": { description: Booking awaiting payment }, "409": { description: Quotation expired / not waiting for approval } } }
+  /enquiries/{id}/request-revision:
+    put: { tags: [Enquiries], summary: Customer asks for changes to the quotation, parameters: [{ name: id, in: path, required: true, schema: { type: string } }], requestBody: { required: true, content: { application/json: { schema: { type: object, required: [note], properties: { note: { type: string } } } } } }, responses: { "200": { description: revision_requested } } }
+  /enquiries/{id}/counter-offer:
+    put: { tags: [Enquiries], summary: "Customer proposes a lower price (before GST)", parameters: [{ name: id, in: path, required: true, schema: { type: string } }], requestBody: { required: true, content: { application/json: { schema: { type: object, required: [amount], properties: { amount: { type: integer }, note: { type: string } } } } } }, responses: { "200": { description: counter_offered }, "400": { description: Offer must be lower than the quote } } }
+  /enquiries/{id}/cancel:
+    put: { tags: [Enquiries], summary: Customer cancels an open enquiry (an unpaid booking is released), parameters: [{ name: id, in: path, required: true, schema: { type: string } }], responses: { "200": { description: cancelled }, "400": { description: Already booked - cancel the booking instead } } }
+  /enquiries/admin:
+    get: { tags: [Enquiries], summary: "Admin: all enquiries (status, search, page, limit)", responses: { "200": { description: OK } } }
+  /enquiries/admin/stats:
+    get: { tags: [Enquiries], summary: "Admin: counts per status + awaitingAdmin", responses: { "200": { description: OK } } }
+  /enquiries/admin/{id}:
+    get: { tags: [Enquiries], summary: "Admin: one enquiry incl. private notes", parameters: [{ name: id, in: path, required: true, schema: { type: string } }], responses: { "200": { description: OK } } }
+  /enquiries/admin/{id}/messages:
+    post: { tags: [Enquiries], summary: "Admin message (first reply moves new -> in_discussion)", parameters: [{ name: id, in: path, required: true, schema: { type: string } }], responses: { "201": { description: Sent } } }
+  /enquiries/admin/{id}/quotation:
+    post: { tags: [Enquiries], summary: "Admin: send / revise the final quotation (price before GST, itinerary, hotels, activities, transport, inclusions, validity, optional advance %). GST is added by the server.", parameters: [{ name: id, in: path, required: true, schema: { type: string } }], responses: { "200": { description: quotation_sent }, "400": { description: Not allowed in this status / trip too soon for advance } } }
+  /enquiries/admin/{id}/counter-offer:
+    put: { tags: [Enquiries], summary: "Admin: accept (-> new quotation at that price) or decline the customer's counter-offer", parameters: [{ name: id, in: path, required: true, schema: { type: string } }], requestBody: { required: true, content: { application/json: { schema: { type: object, required: [decision], properties: { decision: { type: string, enum: [accept, reject] }, note: { type: string }, validDays: { type: integer } } } } } }, responses: { "200": { description: OK } } }
+  /enquiries/admin/{id}/status:
+    put: { tags: [Enquiries], summary: "Admin: close (rejected, reason required) or reopen (in_discussion)", parameters: [{ name: id, in: path, required: true, schema: { type: string } }], responses: { "200": { description: OK } } }
+  /enquiries/admin/{id}/notes:
+    post: { tags: [Enquiries], summary: "Admin: private internal note", parameters: [{ name: id, in: path, required: true, schema: { type: string } }], responses: { "201": { description: Saved } } }
   /seo/sitemap.xml:
     get: { tags: [Admin], security: [], summary: "XML sitemap of all public pages (static pages, destinations, hotels, packages, blog) - served at /sitemap.xml on the website", responses: { "200": { description: application/xml } } }
   /health:

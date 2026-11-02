@@ -1,5 +1,5 @@
 import { PageMeta } from "@/components/common/page-meta"
-import { pageTitle } from "@/lib/seo"
+import { crumbs, pageTitle, webPageJsonLd } from "@/lib/seo"
 import { useState, type FormEvent, type ChangeEvent } from "react"
 import { Mail, Phone, MapPin, Send } from "lucide-react"
 
@@ -68,7 +68,7 @@ export default function ContactPage() {
 
   return (
     <main className="min-h-screen pt-28 pb-20 bg-muted/20">
-      <PageMeta title={pageTitle("Contact Us")} description="Get in touch with Incredible India Travel for help with hotels, tour packages and custom trips across India." canonical="/contact" />
+      <PageMeta title={pageTitle("Contact Us")} description="Get in touch with Incredible India Travel for help with hotels, tour packages and custom trips across India." canonical="/contact" jsonLd={[webPageJsonLd("ContactPage", "Contact Us", "/contact", "Get in touch with Incredible India Travel for help with hotels, tour packages and custom trips across India."), crumbs({ name: "Contact Us", path: "/contact" })]} />
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
 
         {/* Header */}

@@ -58,7 +58,7 @@ const adminNote = z.object({ note: z.string().trim().min(1, "Note cannot be empt
 
 const listQuery = z.object({
   status: z.enum(ALL_STATUSES).optional(),
-  paymentStatus: z.enum(["pending", "paid", "failed", "refunded", "partially_refunded"]).optional(),
+  paymentStatus: z.enum(["pending", "paid", "partially_paid", "failed", "refunded", "partially_refunded"]).optional(),
   type: z.enum(["hotel", "package"]).optional(),
   search: z.string().trim().max(60).optional(),
   from: isoDate.optional(),

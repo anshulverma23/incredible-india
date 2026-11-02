@@ -11,6 +11,7 @@ const TITLES: Record<string, string> = {
   wishlist: "My Wishlist",
   notifications: "Notifications",
   bookings: "My Bookings",
+  enquiries: "My Enquiries",
   checkout: "Checkout",
   "payment-success": "Payment Successful",
 }

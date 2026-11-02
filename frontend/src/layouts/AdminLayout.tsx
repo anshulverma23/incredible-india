@@ -6,6 +6,7 @@ import {
   MapPinned,
   Package,
   ClipboardList,
+  MessagesSquare,
   Star,
   Ticket,
   BarChart3,
@@ -24,6 +25,7 @@ const navItems = [
   { href: "/admin/hotels", label: "Manage Hotels", icon: Building2 },
   { href: "/admin/destinations", label: "Manage Destinations", icon: MapPinned },
   { href: "/admin/packages", label: "Manage Packages", icon: Package },
+  { href: "/admin/enquiries", label: "Package Enquiries", icon: MessagesSquare },
   { href: "/admin/bookings", label: "Manage Bookings", icon: ClipboardList },
   { href: "/admin/payments", label: "Manage Payments", icon: BarChart3 },
   { href: "/admin/reviews", label: "Manage Reviews", icon: Star },
@@ -36,7 +38,7 @@ const navItems = [
 
 function AdminShell({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation()
-  const current = navItems.find((item) => item.href === pathname)
+  const current = navItems.find((item) => pathname === item.href || (item.href !== "/admin" && pathname.startsWith(`${item.href}/`)))
   const label = current ? current.label.charAt(0).toUpperCase() + current.label.slice(1) : "Admin Panel"
 
   return (
@@ -51,7 +53,7 @@ function AdminShell({ children }: { children: React.ReactNode }) {
         </div>
         <nav className="flex-1 overflow-y-auto p-3 space-y-1">
           {navItems.map((item) => {
-            const active = pathname === item.href
+            const active = pathname === item.href || (item.href !== "/admin" && pathname.startsWith(`${item.href}/`))
             const Icon = item.icon
             return (
               <Link

@@ -1,0 +1,89 @@
+[33mcommit 7f36f0f86106cfc536737422f13f740513617087[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m
+Author: Anshul verma <vermaanshul381@gmail.com>
+Date:   Sat Oct 31 12:02:21 2026 +0530
+
+    seo. change seo
+
+[33mcommit f0a9771bca690cec79827375e9b8c20bc32699c0[m
+Author: Anshul verma <vermaanshul381@gmail.com>
+Date:   Sat Oct 31 11:53:35 2026 +0530
+
+    upgrade seo
+
+[33mcommit 18ff26d2baa4dad59a10ccf6964030595272e196[m
+Author: Anshul verma <vermaanshul381@gmail.com>
+Date:   Fri Oct 30 15:28:03 2026 +0530
+
+    slug feature add in destination
+
+[33mcommit 64160c9e07280692d81225f409acf9941957dc15[m
+Author: Anshul verma <vermaanshul381@gmail.com>
+Date:   Fri Oct 30 14:59:23 2026 +0530
+
+    fix slug
+
+[33mcommit d3aa671c9c6beae034bd3f5c4c1b284672a76d2d[m
+Author: Anshul verma <vermaanshul381@gmail.com>
+Date:   Fri Oct 30 14:01:16 2026 +0530
+
+    slug add in travel
+
+[33mcommit b207a127385be465ad46cf92aaec5979e8b518c6[m
+Author: Anshul verma <vermaanshul381@gmail.com>
+Date:   Fri Oct 30 12:56:46 2026 +0530
+
+    travel booking currection
+
+[33mcommit 7e941fd376f51d2ee16edd3e21f8ddba18b2600d[m
+Author: Anshul verma <vermaanshul381@gmail.com>
+Date:   Fri Oct 30 12:46:50 2026 +0530
+
+    update hotel
+
+[33mcommit 0e38bfd0b5b7fbb8b75d5578cd1ec51922af82a1[m
+Author: Anshul verma <vermaanshul381@gmail.com>
+Date:   Fri Oct 30 11:15:35 2026 +0530
+
+    update hotel booking flow
+
+[33mcommit fddc447af9065cbbb3de415b69c72c05cc13a2b6[m
+Author: Anshul verma <vermaanshul381@gmail.com>
+Date:   Sat Oct 24 14:30:30 2026 +0530
+
+    file rename
+
+[33mcommit d8f52c51ebd1ac55436a475110d84685068f888d[m
+Author: Anshul verma <vermaanshul381@gmail.com>
+Date:   Sat Oct 24 14:24:42 2026 +0530
+
+    package slug feature update
+
+[33mcommit f737bd49ac1f195175be1bae644c0bb4cbf6128c[m
+Author: Anshul verma <vermaanshul381@gmail.com>
+Date:   Sat Oct 24 13:18:09 2026 +0530
+
+    feat: use package slugs in URLs
+
+[33mcommit 81ff56859be0d2be8d7d95bd5a07e13f4402383e[m
+Author: Anshul verma <vermaanshul381@gmail.com>
+Date:   Mon Oct 19 17:23:16 2026 +0530
+
+    reverse
+
+[33mcommit 8b4fc580aa3fac7e4254defab6d0d6f2718548b3[m
+Author: Anshul verma <vermaanshul381@gmail.com>
+Date:   Mon Oct 19 17:06:48 2026 +0530
+
+    prefix added
+
+[33mcommit ac2fa9efd7a3486d3f0cf92d51ffbdb62d59296e[m
+Author: Anshul verma <vermaanshul381@gmail.com>
+Date:   Fri Oct 16 11:23:58 2026 +0530
+
+    package update
+
+[33mcommit 6e1266628fa3864a626e575a8f93b6edc1f68419[m
+Author: Anshul verma <vermaanshul381@gmail.com>
+Date:   Fri Oct 16 10:08:13 2026 +0530
+
+    first commit

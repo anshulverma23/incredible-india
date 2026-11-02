@@ -9,6 +9,8 @@ export type NotificationType =
   | "booking_request"
   | "booking_quote"
   | "booking_declined"
+  | "enquiry_update"
+  | "payment_due"
   | "review_prompt"
   | "general"
 

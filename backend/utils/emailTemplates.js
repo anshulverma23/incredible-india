@@ -48,6 +48,26 @@ const bookingRows = (b) => {
   return rows;
 };
 
+const fmtDateTime = (d) => (d ? new Date(d).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : "-");
+
+// Rows describing a package enquiry (+ its quotation when there is one)
+const enquiryRows = (e) => {
+  const r = e.request || {};
+  const rows = [
+    row("Enquiry ID", esc(e.enquiryNumber)),
+    row("Package", esc(e.package?.name || "Tour package")),
+    row("Travel date", fmtDate(r.startDate)),
+    row("Travellers", `${esc(r.adults || 1)} adult(s), ${esc(r.children || 0)} child(ren)`),
+  ];
+  const q = e.quotation;
+  if (q?.amount) {
+    rows.push(row("Package price", inr(q.amount)), row("GST", inr(q.tax)), row("Total", inr(q.totalAmount)));
+    if (q.advanceAllowed) rows.push(row("Advance option", `${esc(q.advancePercent)}% now, rest before the trip`));
+    rows.push(row("Valid until", fmtDateTime(q.validUntil)));
+  }
+  return rows;
+};
+
 const emailTemplates = {
   verifyEmail: (name, url) =>
     layout(
@@ -76,7 +96,9 @@ const emailTemplates = {
       "Booking confirmed",
       `<h2 style="margin-top:0;">Booking confirmed, ${esc(name)}!</h2><p>Your trip is booked. Here are your details:</p>${table([
         ...bookingRows(b),
-        row("Total paid", inr(b.pricing?.totalAmount)),
+        ...(b.paymentPlan?.mode === "advance" && b.paymentStatus === "partially_paid"
+          ? [row("Advance paid", inr(b.amountPaid)), row("Balance due", inr(b.paymentPlan.balanceAmount)), row("Balance due by", fmtDate(b.paymentPlan.balanceDueDate))]
+          : [row("Total paid", inr(b.pricing?.totalAmount))]),
       ])}<p>Your invoice is attached to this email and is also available in your dashboard.</p>${button(`${env.FRONTEND_URL}/bookings/${b._id}`, "View Booking")}<p>Thank you for booking with India Travel. Have a wonderful trip!</p>`,
       `Booking ${b.bookingReference} confirmed`
     ),
@@ -199,6 +221,35 @@ const emailTemplates = {
           : `We could not confirm your request <strong>${esc(b.bookingReference)}</strong> in time and it has been closed.`
       } You have not been charged. Please make a new request and we will help you again.</p>${button(`${env.FRONTEND_URL}/hotels`, "Browse hotels")}`,
       `Request ${b.bookingReference} closed`
+    ),
+
+  // Customer: package enquiry updates (received, admin reply, quotation ready, closed)
+  enquiryCustomerUpdate: ({ name, heading, intro, e, buttonLabel = "Open enquiry" }) =>
+    layout(
+      heading,
+      `<h2 style="margin-top:0;">Hi ${esc(name)},</h2><p style="white-space:pre-wrap;">${esc(intro)}</p>${table(enquiryRows(e))}${button(`${env.FRONTEND_URL}/enquiries/${e._id}`, buttonLabel)}`,
+      heading
+    ),
+
+  // Admin: something happened on a package enquiry that needs attention
+  enquiryAdminAlert: ({ heading, intro, e, customer }) =>
+    layout(
+      heading,
+      `<h2 style="margin-top:0;">${esc(heading)}</h2><p style="white-space:pre-wrap;">${esc(intro)}</p>${table([...enquiryRows(e), row("Customer", `${esc(customer?.name)} (${esc(customer?.email)})`)])}${button(`${env.FRONTEND_URL}/admin/enquiries/${e._id}`, "Open enquiry")}`,
+      heading
+    ),
+
+  // Customer: advance paid, balance due soon
+  balanceDueReminder: (name, b) =>
+    layout(
+      "Balance payment due",
+      `<h2 style="margin-top:0;">Hi ${esc(name)},</h2><p>Your booking <strong>${esc(b.bookingReference)}</strong> is confirmed. Please pay the remaining balance before your trip.</p>${table([
+        ...bookingRows(b),
+        row("Paid so far", inr(b.amountPaid)),
+        row("Balance due", inr(b.paymentPlan?.balanceAmount)),
+        row("Due by", fmtDate(b.paymentPlan?.balanceDueDate)),
+      ])}${button(`${env.FRONTEND_URL}/checkout/${b._id}`, "Pay balance")}`,
+      `Balance due for ${b.bookingReference}`
     ),
 
   // Contact form -> admin

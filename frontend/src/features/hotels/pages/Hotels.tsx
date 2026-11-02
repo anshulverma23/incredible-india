@@ -1,5 +1,6 @@
+import { hotelPath } from "@/features/hotels/lib/hotel-path"
 import { PageMeta } from "@/components/common/page-meta"
-import { pageTitle } from "@/lib/seo"
+import { crumbs, itemListJsonLd, pageTitle } from "@/lib/seo"
 import { useEffect, useState } from "react"
 import { SearchBar } from "@/components/common/search-bar"
 import { FilterSidebar, FilterGroup } from "@/components/common/filter-sidebar"
@@ -53,7 +54,7 @@ export default function HotelsPage() {
 
   return (
     <main className="min-h-screen bg-background pb-20 pt-28">
-      <PageMeta title={pageTitle("Hotels in India - Book Your Stay")} description="Browse hotels across India, from budget stays to luxury resorts and heritage palaces. Compare rooms, prices and amenities, then send a booking request." canonical="/hotels" />
+      <PageMeta title={pageTitle("Hotels in India - Book Your Stay")} description="Browse hotels across India, from budget stays to luxury resorts and heritage palaces. Compare rooms, prices and amenities, then send a booking request." canonical="/hotels" jsonLd={[crumbs({ name: "Hotels", path: "/hotels" }), ...(hotels.length > 0 ? [itemListJsonLd("Hotels in India", hotels.map((h) => ({ name: h.name, path: hotelPath(h) })))] : [])]} />
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
           <div>

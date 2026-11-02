@@ -29,6 +29,7 @@ export const BOOKING_STATUS_LABEL: Record<BookingStatus, string> = {
 export const PAYMENT_STATUS_LABEL: Record<PaymentStatus, string> = {
   pending: "Payment pending",
   paid: "Paid",
+  partially_paid: "Advance paid - balance due",
   failed: "Payment failed",
   refunded: "Refunded",
   partially_refunded: "Partly refunded",
@@ -40,6 +41,10 @@ export const isRequestStage = (b: { bookingStatus: BookingStatus }) => b.booking
 /** The admin sent a final price and the customer can still accept it. */
 export const canApprovePrice = (b: { bookingStatus: BookingStatus; expiresAt?: string }) =>
   b.bookingStatus === "awaiting_approval" && (!b.expiresAt || new Date(b.expiresAt).getTime() > Date.now())
+
+/** Advance paid, balance still to pay (custom quotation bookings). */
+export const isBalanceDue = (b: { bookingStatus: BookingStatus; paymentStatus: PaymentStatus; paymentPlan?: { mode: string } }) =>
+  b.paymentPlan?.mode === "advance" && b.paymentStatus === "partially_paid" && b.bookingStatus === "confirmed"
 
 /** A booking the customer can still pay for. */
 export const isPayable = (b: { bookingStatus: BookingStatus; paymentStatus: PaymentStatus; expiresAt?: string }) =>

@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { PageLoader } from "@/components/ui/spinner"
 import { PageMeta } from "@/components/common/page-meta"
-import { absoluteUrl, pageTitle, truncate, SITE_NAME } from "@/lib/seo"
+import { absoluteUrl, crumbs, pageTitle, truncate, SITE_NAME } from "@/lib/seo"
 
 import { blogApi } from "@/features/blog/api/blog.api"
 import type { BlogPost } from "@/features/blog/types"
@@ -94,7 +94,7 @@ export default function BlogDetailPage() {
         canonical={`/blog/${blog.slug}`}
         image={blog.image}
         type="article"
-        jsonLd={{
+        jsonLd={[{
           "@context": "https://schema.org",
           "@type": "BlogPosting",
           headline: blog.title,
@@ -105,7 +105,7 @@ export default function BlogDetailPage() {
           datePublished: blog.createdAt || blog.date,
           ...(blog.updatedAt && { dateModified: blog.updatedAt }),
           mainEntityOfPage: absoluteUrl(`/blog/${blog.slug}`),
-        }}
+        }, crumbs({ name: "Blog", path: "/blog" }, { name: blog.title, path: `/blog/${blog.slug}` })]}
       />
 
       <main className="min-h-screen pt-28 pb-20 bg-muted/20">

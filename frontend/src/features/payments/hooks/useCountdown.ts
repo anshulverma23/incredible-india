@@ -14,4 +14,8 @@ export function useCountdown(target?: string): number | null {
   return Math.max(0, Math.floor((new Date(target).getTime() - now) / 1000))
 }
 
-export const formatCountdown = (seconds: number) => `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`
+export const formatCountdown = (seconds: number) => {
+  // custom-quotation bookings are held for 48h: show "47h 59m" instead of "2879:59"
+  if (seconds >= 3600) return `${Math.floor(seconds / 3600)}h ${String(Math.floor((seconds % 3600) / 60)).padStart(2, "0")}m`
+  return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`
+}

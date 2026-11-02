@@ -11,6 +11,9 @@ const paymentSchema = new mongoose.Schema(
     razorpaySignature: { type: String },
     method: String, // card / upi / netbanking ... (from webhook/fetch)
 
+    // What this payment covers: the whole booking, the advance, or the balance of an advance plan.
+    purpose: { type: String, enum: ["full", "advance", "balance"], default: "full" },
+
     amount: { type: Number, required: true, min: 0 }, // INR (rupees)
     currency: { type: String, default: "INR" },
     status: {

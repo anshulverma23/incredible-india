@@ -1,23 +1,20 @@
 import { useEffect, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
-import { Calendar, Check, X, MapPin, Users } from "lucide-react"
+import { Check, X, MapPin, MessagesSquare, Users } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { Select } from "@/components/ui/select"
-import { Alert } from "@/components/ui/alert"
 import { PageLoader } from "@/components/ui/spinner"
 import { StarRating } from "@/components/common/star-rating"
 import { PageMeta } from "@/components/common/page-meta"
-import { absoluteUrl, pageTitle, truncate } from "@/lib/seo"
+import { absoluteUrl, crumbs, pageTitle, truncate } from "@/lib/seo"
 import { WishlistButton } from "@/features/wishlist/components/wishlist-button"
 import { ReviewSection } from "@/features/reviews/components/review-section"
-import { formatDate, formatINR } from "@/lib/utils"
+import { formatINR } from "@/lib/utils"
 import { useAuth } from "@/features/auth/hooks/useAuth"
 import { packageApi } from "@/features/packages/api/package.api"
 import { isObjectId, packagePath } from "@/features/packages/lib/package-path"
-import { bookingApi } from "@/features/bookings/api/booking.api"
-import { ApiError } from "@/lib/axios"
+import { EnquiryModal } from "@/features/enquiries/components/enquiry-modal"
 import type { TourPackage } from "@/features/packages/types"
 
 export default function PackageDetailsPage() {
@@ -30,11 +27,7 @@ export default function PackageDetailsPage() {
   const [loading, setLoading] = useState(true)
   const [activeImage, setActiveImage] = useState(0)
 
-  const [travelDate, setTravelDate] = useState("")
-  const [adults, setAdults] = useState(2)
-  const [children, setChildren] = useState(0)
-  const [bookingError, setBookingError] = useState("")
-  const [submitting, setSubmitting] = useState(false)
+  const [enquiryOpen, setEnquiryOpen] = useState(false)
 
   useEffect(() => {
     packageApi
@@ -59,34 +52,14 @@ export default function PackageDetailsPage() {
   )
 
   const destinationName = typeof pkg.destination === "object" ? pkg.destination.name : ""
-  const totalGuests = adults + children
-  const totalEstimate = pkg.price * totalGuests
   const images = pkg.gallery
 
-  const handleBook = async () => {
-    setBookingError("")
+  const handleDiscuss = () => {
     if (!user) {
       navigate("/login")
       return
     }
-    if (!travelDate) {
-      setBookingError("Please select a travel date")
-      return
-    }
-    setSubmitting(true)
-    try {
-      const { booking } = await bookingApi.create({
-        bookingType: "package",
-        packageId: pkg._id,
-        travelDate,
-        guests: { adults, children },
-      })
-      navigate(`/checkout/${booking._id}`)
-    } catch (err) {
-      setBookingError(err instanceof ApiError ? err.message : "Could not create booking")
-    } finally {
-      setSubmitting(false)
-    }
+    setEnquiryOpen(true)
   }
 
   const metaDescription = truncate(pkg.description)
@@ -98,7 +71,7 @@ export default function PackageDetailsPage() {
         description={metaDescription}
         canonical={packagePath(pkg)}
         image={images[0]?.url}
-        jsonLd={{
+        jsonLd={[{
           "@context": "https://schema.org",
           "@type": ["TouristTrip", "Product"],
           name: pkg.name,
@@ -108,14 +81,14 @@ export default function PackageDetailsPage() {
           touristType: pkg.packageType,
           ...(destinationName && { itinerary: { "@type": "Place", name: destinationName } }),
           offers: {
-            "@type": "Offer",
-            price: pkg.price,
+            "@type": "AggregateOffer", // "from" price: the final price is quoted after the customer discusses the package
+            lowPrice: pkg.price,
             priceCurrency: "INR",
             availability: "https://schema.org/InStock",
             url: absoluteUrl(packagePath(pkg)),
           },
           ...(pkg.numReviews > 0 && { aggregateRating: { "@type": "AggregateRating", ratingValue: pkg.rating, reviewCount: pkg.numReviews } }),
-        }}
+        }, crumbs({ name: "Tour Packages", path: "/packages" }, { name: pkg.name, path: packagePath(pkg) })]}
       />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-8">
@@ -217,70 +190,33 @@ export default function PackageDetailsPage() {
             </div>
           </div>
 
-          {/* Booking widget */}
+          {/* Discuss & customise: the customer talks to us first, gets a quotation, then pays */}
           <div className="lg:col-span-1">
             <Card className="sticky top-28 p-5">
-              <p className="text-sm text-muted-foreground">Starting from</p>
-              <p className="font-serif text-3xl font-bold text-foreground">{formatINR(pkg.price)}<span className="text-sm font-normal text-muted-foreground"> /person</span></p>
-
-              {bookingError && <Alert variant="destructive" className="mt-4">{bookingError}</Alert>}
-
-              <div className="mt-4 space-y-3">
-                <div>
-                  <label className="mb-1 flex items-center gap-1 text-xs font-medium text-muted-foreground"><Calendar className="size-3" /> Travel Date</label>
-                  {pkg.departures && pkg.departures.length > 0 ? (
-                    <Select value={travelDate} onChange={(e) => setTravelDate(e.target.value)}>
-                      <option value="">Select a departure</option>
-                      {pkg.departures.map((d) => (
-                        <option key={d.date} value={d.date.slice(0, 10)} disabled={d.seatsLeft < totalGuests}>
-                          {formatDate(d.date)} - {d.seatsLeft === 0 ? "Sold out" : d.seatsLeft < totalGuests ? `only ${d.seatsLeft} left` : `${d.seatsLeft} seats left`}
-                        </option>
-                      ))}
-                    </Select>
-                  ) : (
-                    <input
-                      type="date"
-                      value={travelDate}
-                      min={new Date().toISOString().split("T")[0]}
-                      onChange={(e) => setTravelDate(e.target.value)}
-                      className="h-9 w-full rounded-lg border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring"
-                    />
-                  )}
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-muted-foreground">Adults</label>
-                    <Select value={adults} onChange={(e) => setAdults(Number(e.target.value))}>
-                      {[1, 2, 3, 4, 5, 6, 8, 10].map((n) => <option key={n} value={n}>{n}</option>)}
-                    </Select>
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-muted-foreground">Children</label>
-                    <Select value={children} onChange={(e) => setChildren(Number(e.target.value))}>
-                      {[0, 1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}</option>)}
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="rounded-lg bg-muted p-3 text-sm">
-                  <div className="flex justify-between text-muted-foreground">
-                    <span>{formatINR(pkg.price)} x {totalGuests} traveler{totalGuests > 1 ? "s" : ""}</span>
-                  </div>
-                  <div className="mt-1 flex justify-between font-semibold text-foreground">
-                    <span>Estimated total</span>
-                    <span>{formatINR(totalEstimate)}</span>
-                  </div>
-                  <p className="mt-1 text-[11px] text-muted-foreground">Taxes calculated at checkout</p>
-                </div>
-
-                <Button onClick={handleBook} disabled={submitting} className="w-full bg-primary text-primary-foreground hover:bg-primary/90 py-5">
-                  {submitting ? "Creating booking..." : user ? "Book Package" : "Log in to Book"}
-                </Button>
+              <div className="flex items-start justify-between gap-2">
+                <h2 className="font-serif text-xl font-bold text-foreground">{pkg.name}</h2>
+                <Badge variant="secondary">Customizable</Badge>
               </div>
+              <p className="mt-3 text-sm text-muted-foreground">From</p>
+              <p className="font-serif text-3xl font-bold text-foreground">{formatINR(pkg.price)}<span className="text-sm font-normal text-muted-foreground"> /person</span></p>
+              <p className="mt-2 text-sm text-muted-foreground">{pkg.duration.days} Days · {pkg.duration.nights} Nights{destinationName ? ` · ${destinationName}` : ""}</p>
+
+              <Button onClick={handleDiscuss} className="mt-4 w-full bg-primary py-5 text-primary-foreground hover:bg-primary/90">
+                <MessagesSquare className="size-4" /> Discuss This Package
+              </Button>
+              <p className="mt-3 text-xs text-muted-foreground">Share your travel requirements and get a personalized quotation. No payment is needed now.</p>
+
+              <ol className="mt-4 space-y-1.5 border-t border-border pt-4 text-xs text-muted-foreground">
+                <li><strong className="text-foreground">1.</strong> Tell us your dates, travellers and budget</li>
+                <li><strong className="text-foreground">2.</strong> Our expert customises hotels, transport and activities</li>
+                <li><strong className="text-foreground">3.</strong> Review the final quotation - accept, change or negotiate</li>
+                <li><strong className="text-foreground">4.</strong> Pay in full or an advance and get your confirmation + invoice</li>
+              </ol>
             </Card>
           </div>
         </div>
       </div>
+      {enquiryOpen && <EnquiryModal pkg={pkg} open={enquiryOpen} onOpenChange={setEnquiryOpen} />}
     </main>
   )
 }

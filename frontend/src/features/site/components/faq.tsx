@@ -11,7 +11,7 @@ import { faqApi } from "@/features/faq/api/faq.api"
 import type { FAQ as FAQType } from "@/features/faq/types"
 import { ApiError } from "@/lib/axios"
 
-export function FAQ() {
+export function FAQ({ onLoaded }: { onLoaded?: (faqs: FAQType[]) => void } = {}) {
   const [faqs, setFaqs] = useState<FAQType[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
@@ -25,6 +25,7 @@ export function FAQ() {
         const response = await faqApi.list()
 
         setFaqs(response.faqs || [])
+        onLoaded?.(response.faqs || [])
       } catch (err) {
         console.error("FAQ loading error:", err)
 
@@ -39,7 +40,7 @@ export function FAQ() {
     }
 
     fetchFAQs()
-  }, [])
+  }, [onLoaded])
 
   return (
     <section

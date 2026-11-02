@@ -1,4 +1,4 @@
-import { pageTitle } from "@/lib/seo"
+import { crumbs, pageTitle, webPageJsonLd } from "@/lib/seo"
 import { Card } from "@/components/ui/card"
 import { Users, MapPin, Award, HeartHandshake } from "lucide-react"
 import { PageMeta } from "@/components/common/page-meta"
@@ -20,7 +20,7 @@ export default function AboutPage() {
   return (
     <>
       {/* Replaces the Next.js `export const metadata` block. */}
-      <PageMeta {...metadata} />
+      <PageMeta {...metadata} jsonLd={[webPageJsonLd("AboutPage", "About Us", metadata.canonical, metadata.description), crumbs({ name: "About Us", path: metadata.canonical })]} />
       <main className="min-h-screen">
         <section className="relative h-[40vh] min-h-[280px] flex items-center justify-center overflow-hidden">
           <img

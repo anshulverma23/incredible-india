@@ -1,10 +1,12 @@
 const Booking = require("../models/booking.model");
+const PackageEnquiry = require("../models/packageEnquiry.model");
 const Payment = require("../models/payment.model");
 const Coupon = require("../models/coupon.model");
 const CouponUsage = require("../models/couponUsage.model");
 const WebhookEvent = require("../models/webhookEvent.model");
 const User = require("../models/user.model");
 const { env } = require("../config/env");
+const { PACKAGE_ENQUIRY } = require("../config/policy");
 const { httpError } = require("../utils/httpError");
 const logger = require("../utils/logger");
 const { getRazorpay, isConfigured, verifyPaymentSignature, verifyWebhookSignature } = require("../utils/razorpay");
@@ -16,6 +18,13 @@ const availability = require("./availability.service");
 const populateBooking = (q) =>
   q.populate("user", "name email phone").populate("hotel", "name location").populate("room", "roomType totalRooms").populate("package", "name maxGroupSize");
 
+/** What a payment of this purpose must be (rupees). Always computed from the DB, never from the client. */
+const expectedAmount = (booking, purpose = "full") => {
+  if (purpose === "advance") return booking.paymentPlan.advanceAmount;
+  if (purpose === "balance") return booking.paymentPlan.balanceAmount;
+  return booking.pricing.totalAmount;
+};
+
 /* ------------------------------------------------------------------ */
 /* 1. Create order                                                     */
 /* ------------------------------------------------------------------ */
@@ -24,16 +33,23 @@ const createOrder = async (bookingId, user) => {
   if (!booking) throw httpError(404, "Booking not found");
   if (String(booking.user) !== String(user._id)) throw httpError(403, "Not authorized for this booking");
   if (booking.paymentStatus === "paid") throw httpError(400, "Booking is already paid for");
+
+  // Advance plan: 1st payment = advance (booking is "pending"), 2nd payment = balance (booking is already "confirmed").
+  const plan = booking.paymentPlan;
+  const isAdvancePlan = plan?.mode === "advance";
+  const isBalance = isAdvancePlan && booking.paymentStatus === "partially_paid" && booking.bookingStatus === "confirmed";
+  const purpose = isBalance ? "balance" : isAdvancePlan ? "advance" : "full";
+
   if (booking.bookingStatus === "pending_confirmation") throw httpError(409, "This hotel request is still waiting for the hotel's confirmation. You can pay once the final price is sent and you approve it.");
   if (booking.bookingStatus === "awaiting_approval") throw httpError(409, "Please approve the final price on your booking page before paying.");
-  if (booking.bookingStatus !== "pending") throw httpError(409, `This booking is ${booking.bookingStatus} and can no longer be paid`);
-  if (booking.expiresAt && booking.expiresAt < new Date()) throw httpError(409, "This booking has expired. Please create a new booking.");
+  if (!isBalance && booking.bookingStatus !== "pending") throw httpError(409, `This booking is ${booking.bookingStatus} and can no longer be paid`);
+  if (!isBalance && booking.expiresAt && booking.expiresAt < new Date()) throw httpError(409, "This booking has expired. Please create a new booking.");
 
-  const amountRupees = booking.pricing.totalAmount;
+  const amountRupees = expectedAmount(booking, purpose);
   if (!(amountRupees > 0)) throw httpError(400, "Nothing to pay for this booking");
 
   // Idempotent: reuse the open order for the same amount (page refresh / double click / retry after a failed attempt)
-  const open = await Payment.findOne({ booking: booking._id, status: { $in: ["created", "failed"] }, amount: amountRupees }).sort({ createdAt: -1 });
+  const open = await Payment.findOne({ booking: booking._id, status: { $in: ["created", "failed"] }, amount: amountRupees, ...(purpose === "full" ? {} : { purpose }) }).sort({ createdAt: -1 });
   if (open?.razorpayOrderId) {
     return { orderId: open.razorpayOrderId, amount: Math.round(open.amount * 100), currency: open.currency, keyId: env.RAZORPAY_KEY_ID, payment: open };
   }
@@ -42,7 +58,7 @@ const createOrder = async (bookingId, user) => {
     amount: Math.round(amountRupees * 100), // paise - integer, always computed from the DB, never from the client
     currency: "INR",
     receipt: booking.bookingReference,
-    notes: { bookingId: String(booking._id), bookingReference: booking.bookingReference },
+    notes: { bookingId: String(booking._id), bookingReference: booking.bookingReference, purpose },
   });
 
   const payment = await Payment.create({
@@ -50,6 +66,7 @@ const createOrder = async (bookingId, user) => {
     user: user._id,
     gateway: "razorpay",
     razorpayOrderId: order.id,
+    purpose,
     amount: amountRupees,
     currency: "INR",
     status: "created",
@@ -58,11 +75,15 @@ const createOrder = async (bookingId, user) => {
   // Give the customer time to finish paying, but cap the total hold at 2x the normal window.
   const now = Date.now();
   // Hotel requests start the payment window when the customer approves the price (not when they first asked).
-  const cap = (booking.approvedAt || booking.createdAt).getTime() + 2 * env.BOOKING_HOLD_MINUTES * 60_000;
-  booking.expiresAt = new Date(Math.min(cap, Math.max(booking.expiresAt?.getTime() || 0, now + 15 * 60_000)));
-  booking.payment = payment._id;
-  booking.paymentStatus = "pending";
-  await booking.save();
+  // Custom quotation bookings get the (longer) enquiry payment window instead.
+  const holdMs = booking.enquiry ? PACKAGE_ENQUIRY.paymentWindowHours * 3_600_000 : 2 * env.BOOKING_HOLD_MINUTES * 60_000;
+  const cap = (booking.approvedAt || booking.createdAt).getTime() + holdMs;
+  if (!isBalance) {
+    booking.expiresAt = new Date(Math.min(cap, Math.max(booking.expiresAt?.getTime() || 0, now + 15 * 60_000)));
+    booking.payment = payment._id;
+    booking.paymentStatus = "pending";
+    await booking.save();
+  }
 
   return { orderId: order.id, amount: order.amount, currency: order.currency, keyId: env.RAZORPAY_KEY_ID, payment };
 };
@@ -137,8 +158,12 @@ const confirmPayment = async ({ orderId, paymentId, signature, method, via }) =>
 
   // The money has been captured. Decide whether we can still honour the booking.
   let problem = null;
-  if (claimed.amount !== booking.pricing.totalAmount) {
+  const purpose = claimed.purpose || "full";
+  if (claimed.amount !== expectedAmount(booking, purpose)) {
     problem = "Amount paid does not match the booking total";
+  } else if (purpose === "balance") {
+    // The balance only makes sense while an advance is paid and the rest is still open.
+    if (booking.paymentStatus !== "partially_paid") problem = "Balance was already paid";
   } else if (booking.bookingStatus === "confirmed" || booking.bookingStatus === "completed") {
     // duplicate payment for an already-confirmed booking
     problem = "Booking was already paid";
@@ -161,16 +186,44 @@ const confirmPayment = async ({ orderId, paymentId, signature, method, via }) =>
     return { payment: claimed, booking: fresh, refunded: true, reason: problem };
   }
 
+  // Balance of an advance plan: the booking is already confirmed, it just becomes fully paid.
+  if (purpose === "balance") {
+    booking.paymentStatus = "paid";
+    booking.amountPaid = (booking.amountPaid || 0) + claimed.amount;
+    booking.paymentPlan.balancePaidAt = new Date();
+    booking.statusHistory.push({ status: booking.bookingStatus, note: `Balance payment received via ${via}` });
+    await booking.save();
+    await notify(booking.user, { type: "payment_success", title: "Balance payment received", message: `We received the balance of Rs. ${claimed.amount} for booking ${booking.bookingReference}. It is now fully paid.`, link: `/bookings/${booking._id}`, booking: booking._id });
+    const customer = await User.findById(booking.user).select("name email").lean();
+    if (customer?.email) queueEmail({ to: customer.email, subject: `Payment Receipt - ${booking.bookingReference}`, html: emailTemplates.paymentReceipt(customer.name, booking, claimed) });
+    return { payment: claimed, booking: await populateBooking(Booking.findById(booking._id)) };
+  }
+
   booking.payment = claimed._id;
-  booking.paymentStatus = "paid";
+  booking.amountPaid = claimed.amount;
+  booking.paymentStatus = purpose === "advance" ? "partially_paid" : "paid";
   booking.confirmedAt = new Date();
   booking.expiresAt = undefined;
-  booking.setStatus("confirmed", { note: `Payment confirmed via ${via}` });
+  booking.setStatus("confirmed", { note: purpose === "advance" ? `Advance payment confirmed via ${via}` : `Payment confirmed via ${via}` });
   await booking.save();
 
   await recordCouponUsage(booking);
 
-  await notify(booking.user, { type: "payment_success", title: "Payment successful", message: `We received Rs. ${claimed.amount} for booking ${booking.bookingReference}.`, link: `/bookings/${booking._id}`, booking: booking._id });
+  // Custom quotation: the enquiry is now a confirmed booking.
+  if (booking.enquiry) {
+    await PackageEnquiry.updateOne(
+      { _id: booking.enquiry, status: "accepted" },
+      { $set: { status: "booked", bookedAt: new Date(), lastActivityAt: new Date() }, $push: { statusHistory: { status: "booked", at: new Date(), note: purpose === "advance" ? "Advance payment received" : "Payment received" } } }
+    ).catch((e) => logger.error(`enquiry booked sync failed: ${e.message}`));
+  }
+
+  await notify(booking.user, {
+    type: "payment_success",
+    title: purpose === "advance" ? "Advance payment received" : "Payment successful",
+    message: purpose === "advance" ? `We received the advance of Rs. ${claimed.amount} for booking ${booking.bookingReference}. Balance Rs. ${booking.paymentPlan.balanceAmount} is due before your trip.` : `We received Rs. ${claimed.amount} for booking ${booking.bookingReference}.`,
+    link: `/bookings/${booking._id}`,
+    booking: booking._id,
+  });
   await notify(booking.user, { type: "booking_confirmed", title: "Booking confirmed", message: `Your booking ${booking.bookingReference} is confirmed. Have a great trip!`, link: `/bookings/${booking._id}`, booking: booking._id });
   sendConfirmationEmails(booking, claimed); // not awaited on purpose
 
@@ -273,6 +326,26 @@ const refundPayment = async (payment, amount, reason = "Refund", by) => {
   return payment;
 };
 
+/**
+ * Refunds `amount` rupees of a booking that was paid in more than one payment (advance + balance).
+ * The newest payment is refunded first. Returns the amount actually refunded.
+ */
+const refundBookingAmount = async (booking, amount, reason, by) => {
+  const payments = await Payment.find({ booking: booking._id, status: { $in: ["paid", "partially_refunded"] } }).sort({ paidAt: -1 });
+  let left = Math.round(amount);
+  let refunded = 0;
+  for (const p of payments) {
+    const take = Math.min(left, p.amount - (p.refundedAmount || 0));
+    if (take > 0) {
+      await refundPayment(p, take, reason, by);
+      left -= take;
+      refunded += take;
+    }
+    if (left <= 0) break;
+  }
+  return refunded;
+};
+
 /* ------------------------------------------------------------------ */
 /* 6. Webhooks                                                         */
 /* ------------------------------------------------------------------ */
@@ -331,7 +404,14 @@ const syncRefundFromWebhook = async (refund) => {
 
   const booking = await Booking.findById(payment.booking);
   if (booking && booking.bookingStatus !== "refunded") {
-    booking.paymentStatus = payment.status;
+    if (booking.paymentPlan?.mode === "advance") {
+      // Two payments belong to this booking: judge by everything refunded so far, not by this one payment.
+      const all = await Payment.find({ booking: booking._id, status: { $in: ["paid", "partially_refunded", "refunded"] } }).select("refundedAmount");
+      const refunded = all.reduce((s, p) => s + (p.refundedAmount || 0), 0);
+      booking.paymentStatus = refunded >= (booking.amountPaid || 0) ? "refunded" : "partially_refunded";
+    } else {
+      booking.paymentStatus = payment.status;
+    }
     booking.setStatus(payment.status === "refunded" ? "refunded" : booking.bookingStatus, { note: "Refund processed via gateway" });
     await booking.save();
     await notify(booking.user, { type: "refund_processed", title: "Refund processed", message: `Rs. ${amount} has been refunded for booking ${booking.bookingReference}.`, link: `/bookings/${booking._id}`, booking: booking._id });
@@ -373,4 +453,6 @@ module.exports = {
   handleWebhook,
   reconcileOpenPayments,
   populateBooking,
+  expectedAmount,
+  refundBookingAmount,
 };

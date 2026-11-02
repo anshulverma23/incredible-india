@@ -20,4 +20,14 @@ const HOTEL_REQUEST = {
   maxQuoteValidityHours: 72,
 };
 
-module.exports = { CANCELLATION_TIERS, LIMITS, HOTEL_REQUEST };
+// Package "Discuss & Customize" flow: enquiry -> discussion -> quotation -> customer approval -> payment.
+const PACKAGE_ENQUIRY = {
+  defaultQuoteValidityDays: 7, // how long a quotation stays valid
+  maxQuoteValidityDays: 30,
+  paymentWindowHours: 48, // after the customer accepts, time to make the first payment
+  balanceDueDaysBeforeTrip: 7, // advance plan: the balance is due this many days before the trip starts
+  minAdvancePercent: 10,
+  maxAdvancePercent: 90,
+};
+
+module.exports = { CANCELLATION_TIERS, LIMITS, HOTEL_REQUEST, PACKAGE_ENQUIRY };

@@ -20,6 +20,7 @@ const startJobs = () => {
     cron.schedule("*/5 * * * *", safe("expire-bookings", () => bookingService.expireStaleBookings())), // release unpaid holds
     cron.schedule("15 * * * *", safe("complete-bookings", () => bookingService.completeFinishedBookings())), // unlock reviews
     cron.schedule("0 9 * * *", safe("trip-reminders", () => bookingService.sendTripReminders()), { timezone: "Asia/Kolkata" }),
+    cron.schedule("30 9 * * *", safe("balance-reminders", () => bookingService.sendBalanceReminders()), { timezone: "Asia/Kolkata" }), // advance plan: balance due soon
   ];
   logger.info(`Background jobs started (${tasks.length})`);
   return () => tasks.forEach((t) => t.stop());
