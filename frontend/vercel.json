@@ -2,55 +2,55 @@
   "rewrites": [
     {
       "source": "/sitemap.xml",
-      "destination": "https://YOUR-BACKEND-URL/api/seo/sitemap.xml"
+      "destination": "https://incredible-india-19yu.onrender.com/api/seo/sitemap.xml"
     },
     {
       "source": "/hotels/:slug",
-      "destination": "https://YOUR-BACKEND-URL/api/seo/page?path=/hotels/:slug"
+      "destination": "https://incredible-india-19yu.onrender.com/api/seo/page?path=/hotels/:slug"
     },
     {
       "source": "/packages/:slug",
-      "destination": "https://YOUR-BACKEND-URL/api/seo/page?path=/packages/:slug"
+      "destination": "https://incredible-india-19yu.onrender.com/api/seo/page?path=/packages/:slug"
     },
     {
       "source": "/destinations/:slug",
-      "destination": "https://YOUR-BACKEND-URL/api/seo/page?path=/destinations/:slug"
+      "destination": "https://incredible-india-19yu.onrender.com/api/seo/page?path=/destinations/:slug"
     },
     {
       "source": "/blog/:slug",
-      "destination": "https://YOUR-BACKEND-URL/api/seo/page?path=/blog/:slug"
+      "destination": "https://incredible-india-19yu.onrender.com/api/seo/page?path=/blog/:slug"
     },
     {
       "source": "/hotels",
-      "destination": "https://YOUR-BACKEND-URL/api/seo/page?path=/hotels"
+      "destination": "https://incredible-india-19yu.onrender.com/api/seo/page?path=/hotels"
     },
     {
       "source": "/packages",
-      "destination": "https://YOUR-BACKEND-URL/api/seo/page?path=/packages"
+      "destination": "https://incredible-india-19yu.onrender.com/api/seo/page?path=/packages"
     },
     {
       "source": "/destinations",
-      "destination": "https://YOUR-BACKEND-URL/api/seo/page?path=/destinations"
+      "destination": "https://incredible-india-19yu.onrender.com/api/seo/page?path=/destinations"
     },
     {
       "source": "/blog",
-      "destination": "https://YOUR-BACKEND-URL/api/seo/page?path=/blog"
+      "destination": "https://incredible-india-19yu.onrender.com/api/seo/page?path=/blog"
     },
     {
       "source": "/about",
-      "destination": "https://YOUR-BACKEND-URL/api/seo/page?path=/about"
+      "destination": "https://incredible-india-19yu.onrender.com/api/seo/page?path=/about"
     },
     {
       "source": "/faq",
-      "destination": "https://YOUR-BACKEND-URL/api/seo/page?path=/faq"
+      "destination": "https://incredible-india-19yu.onrender.com/api/seo/page?path=/faq"
     },
     {
       "source": "/contact",
-      "destination": "https://YOUR-BACKEND-URL/api/seo/page?path=/contact"
+      "destination": "https://incredible-india-19yu.onrender.com/api/seo/page?path=/contact"
     },
     {
       "source": "/plan-trip",
-      "destination": "https://YOUR-BACKEND-URL/api/seo/page?path=/plan-trip"
+      "destination": "https://incredible-india-19yu.onrender.com/api/seo/page?path=/plan-trip"
     },
     {
       "source": "/(.*)",
