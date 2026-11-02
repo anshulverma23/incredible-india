@@ -6,9 +6,11 @@ RUN npm ci
 COPY . .
 # Vite bakes VITE_* values into the bundle at BUILD time -> pass them as build args
 ARG VITE_API_URL=http://localhost:8000/api
+ARG VITE_SITE_URL=
 ARG VITE_GOOGLE_CLIENT_ID=
 ARG VITE_GOOGLE_MAPS_API_KEY=
 ENV VITE_API_URL=$VITE_API_URL \
+    VITE_SITE_URL=$VITE_SITE_URL \
     VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID \
     VITE_GOOGLE_MAPS_API_KEY=$VITE_GOOGLE_MAPS_API_KEY
 RUN npm run build

@@ -17,6 +17,7 @@ const ROBOTS_DISALLOW = [
   '/wishlist',
   '/notifications',
   '/bookings',
+  '/enquiries',
   '/checkout',
   '/payment-success',
 ]
